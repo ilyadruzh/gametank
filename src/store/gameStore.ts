@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { defaultConfig } from '../game/parts';
 import { computeUnlocked, loadCompleted, sanitizeConfig, saveCompleted } from '../game/campaign';
-import { loadTheme, saveTheme } from '../game/settings';
+import { loadTheme, loadView, saveTheme, saveView } from '../game/settings';
 import { missionById } from '../game/missions';
-import type { ControlMode, PartCategory, PlayerConfig, Theme } from '../game/types';
+import type { ControlMode, PartCategory, PlayerConfig, Theme, View } from '../game/types';
 import type { BattleMode } from '../game/engine';
 
 export type Screen = 'title' | 'campaign' | 'build' | 'battle';
@@ -15,6 +15,7 @@ interface GameState {
   buildIndex: 0 | 1;
   muted: boolean;
   theme: Theme;
+  view: View;
   result: { winner: number } | null;
 
   // кампания
@@ -34,6 +35,7 @@ interface GameState {
   toMenu: () => void;
   toggleMute: () => void;
   toggleTheme: () => void;
+  toggleView: () => void;
 
   openCampaign: () => void;
   selectMission: (id: string) => void;
@@ -50,6 +52,7 @@ export const useGame = create<GameState>((set, get) => ({
   buildIndex: 0,
   muted: false,
   theme: loadTheme(),
+  view: loadView(),
   result: null,
 
   completed: loadCompleted(),
@@ -124,6 +127,12 @@ export const useGame = create<GameState>((set, get) => ({
       const theme: Theme = s.theme === 'day' ? 'night' : 'day';
       saveTheme(theme);
       return { theme };
+    }),
+  toggleView: () =>
+    set((s) => {
+      const view: View = s.view === '2d' ? '3d' : '2d';
+      saveView(view);
+      return { view };
     }),
 
   openCampaign: () => set({ screen: 'campaign', result: null, currentMissionId: null }),

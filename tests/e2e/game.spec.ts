@@ -203,3 +203,20 @@ test.describe('Мультивыстрел', () => {
     await expect(page.getByTestId('arena')).toBeVisible();
   });
 });
+
+test.describe('3D-режим боя', () => {
+  test('переключение на 3D показывает 3D-сцену', async ({ page }) => {
+    await page.getByTestId('btn-start-bot').click();
+    await page.getByTestId('btn-next').click();
+    await expect(page.getByTestId('screen-battle')).toBeVisible();
+    await page.getByTestId('btn-view').click();
+    // в 3D-режиме появляется r3f-канвас поверх арены
+    await expect(page.getByTestId('battle3d').locator('canvas')).toBeVisible({ timeout: 15000 });
+    // мышь/клавиатура продолжают работать (оверлей pointer-events:none)
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(200);
+    await page.keyboard.up('KeyW');
+    await page.getByTestId('btn-view').click(); // обратно в 2D
+    await expect(page.getByTestId('arena')).toBeVisible();
+  });
+});

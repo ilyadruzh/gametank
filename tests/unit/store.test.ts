@@ -71,4 +71,12 @@ describe('gameStore — переходы экранов', () => {
     useGame.getState().toggleMute();
     expect(useGame.getState().muted).toBe(true);
   });
+
+  it('toggleView переключает режим отображения 2D/3D', () => {
+    useGame.setState({ view: '2d' });
+    useGame.getState().toggleView();
+    expect(useGame.getState().view).toBe('3d');
+    useGame.getState().toggleView();
+    expect(useGame.getState().view).toBe('2d');
+  });
 });

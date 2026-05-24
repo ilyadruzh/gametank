@@ -5,6 +5,7 @@ export type CountryId = string;
 export type PartId = string;
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type Theme = 'day' | 'night';
+export type View = '2d' | '3d';
 export type CannonKind = 'normal' | 'flame' | 'electric' | 'fart' | 'chicken';
 export type ControlMode = 'keys' | 'mouse';
 

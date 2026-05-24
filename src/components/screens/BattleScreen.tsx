@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useGame } from '../../store/gameStore';
 import { COUNTRIES } from '../../game/parts';
 import { missionById } from '../../game/missions';
 import { ARENA_H, ARENA_W, BattleEngine, flagGradient, type BattleOptions } from '../../game/engine';
 import { getPhysics } from '../../wasm/loader';
+
+const Battle3D = lazy(() => import('../Battle3D'));
 
 export default function BattleScreen() {
   const players = useGame((s) => s.players);
@@ -11,6 +13,8 @@ export default function BattleScreen() {
   const muted = useGame((s) => s.muted);
   const theme = useGame((s) => s.theme);
   const toggleTheme = useGame((s) => s.toggleTheme);
+  const view = useGame((s) => s.view);
+  const toggleView = useGame((s) => s.toggleView);
   const result = useGame((s) => s.result);
   const currentMissionId = useGame((s) => s.currentMissionId);
   const setResult = useGame((s) => s.setResult);
@@ -24,8 +28,10 @@ export default function BattleScreen() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hp1Ref = useRef<HTMLElement>(null);
   const hp2Ref = useRef<HTMLElement>(null);
+  const engineRef = useRef<BattleEngine | null>(null);
   const [roundKey, setRoundKey] = useState(0);
   const [noPhys, setNoPhys] = useState(false);
+  const [engineReady, setEngineReady] = useState(false);
   const [timerLeft, setTimerLeft] = useState<number | null>(null);
 
   const isCampaign = mode === 'campaign';
@@ -61,10 +67,22 @@ export default function BattleScreen() {
       },
       opts
     );
+    engine.setRenderEnabled(useGame.getState().view === '2d');
     engine.start();
-    return () => engine.destroy();
+    engineRef.current = engine;
+    setEngineReady(true);
+    return () => {
+      engine.destroy();
+      engineRef.current = null;
+      setEngineReady(false);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundKey]);
+
+  // переключение 2D/3D: движок рисует 2D только в режиме '2d'
+  useEffect(() => {
+    engineRef.current?.setRenderEnabled(view === '2d');
+  }, [view, engineReady]);
 
   const c1 = COUNTRIES[players[0].country];
   const c2 = COUNTRIES[players[1].country];
@@ -95,6 +113,9 @@ export default function BattleScreen() {
         <div className="topbar">
           <button className="iconbtn" data-testid="btn-mute" title="звук" onClick={toggleMute}>
             {muted ? '🔇' : '🔊'}
+          </button>
+          <button className="iconbtn" data-testid="btn-view" title="2D / 3D" onClick={toggleView}>
+            {view === '2d' ? '🧊' : '🗺️'}
           </button>
           <button
             className="iconbtn"
@@ -134,6 +155,12 @@ export default function BattleScreen() {
           height={ARENA_H}
           data-testid="arena"
         />
+
+        {view === '3d' && engineReady && (
+          <Suspense fallback={null}>
+            <Battle3D engineRef={engineRef} players={players} night={theme === 'night'} />
+          </Suspense>
+        )}
 
         {mission?.objective.kind === 'survive' && timerLeft !== null && !result && (
           <div className="survive-timer" data-testid="survive-timer">

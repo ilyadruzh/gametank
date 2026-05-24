@@ -5,9 +5,12 @@ import App from '../../src/App';
 import { useGame } from '../../src/store/gameStore';
 import { defaultConfig } from '../../src/game/parts';
 
-// 3D-превью использует WebGL, которого нет в jsdom — подменяем заглушкой.
+// 3D использует WebGL, которого нет в jsdom — подменяем заглушками.
 vi.mock('../../src/components/TankPreview3D', () => ({
   default: () => <div data-testid="preview-3d-mock" />,
+}));
+vi.mock('../../src/components/Battle3D', () => ({
+  default: () => <div data-testid="battle3d-mock" />,
 }));
 
 function resetStore() {
@@ -18,6 +21,8 @@ function resetStore() {
     players: [defaultConfig(), { ...defaultConfig(), country: 'aqu' }],
     buildIndex: 0,
     muted: false,
+    theme: 'day',
+    view: '2d',
     result: null,
     completed: [],
     currentMissionId: null,
@@ -170,6 +175,16 @@ describe('UI: бой и исход', () => {
     expect(screen.getByTestId('btn-mute')).toHaveTextContent('🔊');
     await user.click(screen.getByTestId('btn-mute'));
     expect(screen.getByTestId('btn-mute')).toHaveTextContent('🔇');
+  });
+
+  it('кнопка вида переключает 2D/3D в сторе', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByTestId('btn-start-bot'));
+    await user.click(screen.getByTestId('btn-next'));
+    expect(useGame.getState().view).toBe('2d');
+    await user.click(screen.getByTestId('btn-view'));
+    expect(useGame.getState().view).toBe('3d');
   });
 
   it('экран победы: «Новые танки» ведёт обратно в конструктор', async () => {
