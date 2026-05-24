@@ -10,8 +10,18 @@ import type { CannonKind, Difficulty, PlayerConfig, TankStats, Theme } from './t
 import type { ObjectiveKind } from './missions';
 import type { PhysicsModule } from '../wasm/loader';
 
+// Размер канваса (вьюпорт рендера) и размеры большого мира.
 export const ARENA_W = 1280;
 export const ARENA_H = 800;
+export const WORLD_W = 3600;
+export const WORLD_H = 2400;
+export const MAX_SEP = 760; // макс. расстояние между танками (тезер)
+
+export interface Camera {
+  x: number;
+  y: number;
+  zoom: number;
+}
 
 export type BattleMode = 'versus' | 'bot' | 'campaign';
 
@@ -113,6 +123,7 @@ export interface BattleOptions {
   difficulty?: Difficulty;
   objective?: BattleObjective;
   theme?: Theme;
+  seed?: number;
 }
 
 const P1_CONTROLS: Controls = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', fire: 'Space', ring: '#2f6fb0' };
@@ -137,12 +148,12 @@ export class BattleEngine {
   private parts: Particle[] = [];
   private obstacles: Obstacle[] = [];
   private mines: Mine[] = [];
-  private bg: HTMLCanvasElement;
   private renderEnabled = true;
+  private cam: Camera = { x: WORLD_W / 2, y: WORLD_H / 2, zoom: 1 };
 
   private canvas: HTMLCanvasElement;
   private keys: Record<string, boolean> = {};
-  private mouse = { x: ARENA_W / 2, y: ARENA_H / 2 };
+  private mouse = { x: WORLD_W / 2, y: WORLD_H / 2 };
   private mouseDown = false;
   private running = false;
   private over = false;
@@ -175,12 +186,10 @@ export class BattleEngine {
     this.difficulty = opts.difficulty ?? 'normal';
     this.objective = opts.objective;
     this.theme = opts.theme ?? 'day';
-    this.bg = document.createElement('canvas');
 
-    this.spawnObstacles();
-    this.spawnMines();
-    this.makeBackground();
+    this.generateWorld(opts.seed ?? (Math.random() * 1e9) | 0);
     this.tanks = configs.map((cfg, i) => this.makeTank(cfg, i));
+    this.cam = computeCamera(this.tanks, ARENA_W, ARENA_H);
   }
 
   setRenderEnabled(on: boolean): void {
@@ -228,20 +237,6 @@ export class BattleEngine {
     return cv;
   }
 
-  private spawnMines(): void {
-    const W = ARENA_W;
-    const H = ARENA_H;
-    const spots: [number, number][] = [
-      [W * 0.4, H * 0.22],
-      [W * 0.6, H * 0.78],
-      [W * 0.22, H * 0.55],
-      [W * 0.78, H * 0.45],
-      [W * 0.5, H * 0.66],
-      [W * 0.5, H * 0.34],
-    ];
-    this.mines = spots.map(([x, y]) => ({ x, y, r: 9, triggerR: 26, armed: true }));
-  }
-
   private makeTank(cfg: PlayerConfig, i: number): Tank {
     const st = computeStats(cfg);
     const spr = buildSprite(st);
@@ -250,8 +245,8 @@ export class BattleEngine {
       cfg,
       st,
       spr,
-      x: i === 0 ? ARENA_W * 0.13 : ARENA_W * 0.87,
-      y: ARENA_H / 2,
+      x: WORLD_W / 2 + (i === 0 ? -280 : 280),
+      y: WORLD_H / 2,
       angle: i === 0 ? 0 : Math.PI,
       spd: 0,
       hp: st.maxHp,
@@ -287,67 +282,80 @@ export class BattleEngine {
     });
   }
 
-  private spawnObstacles(): void {
-    const W = ARENA_W;
-    const H = ARENA_H;
-    const spots: [number, number, 'box' | 'rock'][] = [
-      [W * 0.5, H * 0.5, 'box'],
-      [W * 0.28, H * 0.3, 'rock'],
-      [W * 0.72, H * 0.7, 'rock'],
-      [W * 0.28, H * 0.72, 'box'],
-      [W * 0.72, H * 0.3, 'box'],
-      [W * 0.5, H * 0.16, 'rock'],
-      [W * 0.5, H * 0.84, 'rock'],
-      [W * 0.4, H * 0.4, 'box'],
-      [W * 0.6, H * 0.6, 'box'],
-      [W * 0.16, H * 0.5, 'box'],
-      [W * 0.84, H * 0.5, 'box'],
-    ];
-    this.obstacles = spots.map((s) => {
-      const destructible = s[2] === 'box';
-      const r = destructible ? 28 : 26;
-      return {
-        x: s[0],
-        y: s[1],
-        r,
-        type: s[2],
-        destructible,
-        hp: destructible ? 30 : 0,
-        maxHp: destructible ? 30 : 0,
-        sprite: this.obstacleSprite(s[2], r, 0),
-      };
-    });
-  }
+  // Процедурная генерация мира: сеяный PRNG раскидывает препятствия и мины,
+  // оставляя центральную полосу свободной для спавна танков.
+  private generateWorld(seed: number): void {
+    let s = seed >>> 0;
+    const rng = () => {
+      s = (s + 0x6d2b79f5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const cx = WORLD_W / 2;
+    const cy = WORLD_H / 2;
+    const farFromSpawn = (x: number, y: number) => Math.hypot(x - cx, y - cy) > 200;
 
-  private makeBackground(): void {
-    const W = ARENA_W;
-    const H = ARENA_H;
-    this.bg.width = W;
-    this.bg.height = H;
-    const c = this.bg.getContext('2d')!;
-    const night = this.theme === 'night';
-    c.fillStyle = night ? '#10151c' : '#f3ead2';
-    c.fillRect(0, 0, W, H);
-    c.globalAlpha = night ? 0.35 : 0.5;
-    for (let y = 70; y < H; y += 95) {
-      sketchLine(c, 10, y + Math.sin(y) * 4, W - 10, y + Math.cos(y) * 6, {
-        color: night ? '#3a4a63' : '#b9aaae',
-        w: 1.4,
-        passes: 1,
-        wob: 2.4,
+    this.obstacles = [];
+    const N = 52;
+    let guard = 0;
+    while (this.obstacles.length < N && guard++ < N * 8) {
+      const x = 120 + rng() * (WORLD_W - 240);
+      const y = 120 + rng() * (WORLD_H - 240);
+      if (!farFromSpawn(x, y)) continue;
+      if (this.obstacles.some((o) => Math.hypot(o.x - x, o.y - y) < 120)) continue;
+      const isBox = rng() < 0.6;
+      const r = isBox ? 28 : 26;
+      this.obstacles.push({
+        x,
+        y,
+        r,
+        type: isBox ? 'box' : 'rock',
+        destructible: isBox,
+        hp: isBox ? 30 : 0,
+        maxHp: isBox ? 30 : 0,
+        sprite: this.obstacleSprite(isBox ? 'box' : 'rock', r, 0),
       });
     }
-    c.globalAlpha = 1;
-    if (night) {
-      // редкие «звёзды»
-      c.fillStyle = 'rgba(220,230,255,.5)';
-      for (let i = 0; i < 90; i++) {
-        c.beginPath();
-        c.arc(Math.random() * W, Math.random() * H, Math.random() * 1.2 + 0.3, 0, 7);
-        c.fill();
-      }
+
+    this.mines = [];
+    const M = 14;
+    guard = 0;
+    while (this.mines.length < M && guard++ < M * 10) {
+      const x = 160 + rng() * (WORLD_W - 320);
+      const y = 160 + rng() * (WORLD_H - 320);
+      if (!farFromSpawn(x, y)) continue;
+      if (this.obstacles.some((o) => Math.hypot(o.x - x, o.y - y) < 60)) continue;
+      this.mines.push({ x, y, r: 9, triggerR: 26, armed: true });
     }
-    // препятствия рисуются в render() (могут разрушаться), не в статичном фоне
+  }
+
+  // Земля рисуется процедурно в видимой области (поддержка большого мира).
+  private drawGround(ctx: CanvasRenderingContext2D, view: { x0: number; y0: number; x1: number; y1: number }): void {
+    const night = this.theme === 'night';
+    ctx.fillStyle = night ? '#10151c' : '#f3ead2';
+    ctx.fillRect(view.x0, view.y0, view.x1 - view.x0, view.y1 - view.y0);
+    // сетка-«каракули»
+    ctx.strokeStyle = night ? '#27344a' : '#d9cdb2';
+    ctx.lineWidth = 2;
+    const grid = 220;
+    const gx0 = Math.floor(view.x0 / grid) * grid;
+    const gy0 = Math.floor(view.y0 / grid) * grid;
+    ctx.beginPath();
+    for (let x = gx0; x < view.x1; x += grid) {
+      ctx.moveTo(x, view.y0);
+      ctx.lineTo(x, view.y1);
+    }
+    for (let y = gy0; y < view.y1; y += grid) {
+      ctx.moveTo(view.x0, y);
+      ctx.lineTo(view.x1, y);
+    }
+    ctx.stroke();
+    // граница мира
+    ctx.strokeStyle = night ? '#3a4a63' : '#b9802b';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(0, 0, WORLD_W, WORLD_H);
   }
 
   start(): void {
@@ -385,8 +393,11 @@ export class BattleEngine {
   private onMouseMove = (e: MouseEvent): void => {
     const rect = this.canvas.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    this.mouse.x = ((e.clientX - rect.left) / rect.width) * ARENA_W;
-    this.mouse.y = ((e.clientY - rect.top) / rect.height) * ARENA_H;
+    // экранные CSS-пиксели -> внутренние пиксели вьюпорта -> мировые координаты
+    const px = ((e.clientX - rect.left) / rect.width) * ARENA_W;
+    const py = ((e.clientY - rect.top) / rect.height) * ARENA_H;
+    this.mouse.x = (px - ARENA_W / 2) / this.cam.zoom + this.cam.x;
+    this.mouse.y = (py - ARENA_H / 2) / this.cam.zoom + this.cam.y;
   };
 
   private onMouseDown = (e: MouseEvent): void => {
@@ -523,7 +534,7 @@ export class BattleEngine {
       t.spd = s[3];
 
       // стены в WASM
-      ex.clampToArena(t.x, t.y, t.spd, t.st.radius, ARENA_W, ARENA_H);
+      ex.clampToArena(t.x, t.y, t.spd, t.st.radius, WORLD_W, WORLD_H);
       t.x = s[0];
       t.y = s[1];
       t.spd = s[2];
@@ -558,6 +569,12 @@ export class BattleEngine {
         a.spd *= 0.6;
         b.spd *= 0.6;
       }
+      // тезер: не даём танкам разъехаться дальше экрана
+      const [ax, ay, bx, by] = applyTether(a.x, a.y, b.x, b.y, MAX_SEP);
+      a.x = ax;
+      a.y = ay;
+      b.x = bx;
+      b.y = by;
     }
 
     // мины-ловушки: взрываются под любым проехавшим танком
@@ -604,14 +621,14 @@ export class BattleEngine {
       }
 
       // границы арены: курица отскакивает, остальные гибнут
-      const outX = bl.x < 0 || bl.x > ARENA_W;
-      const outY = bl.y < 0 || bl.y > ARENA_H;
+      const outX = bl.x < 0 || bl.x > WORLD_W;
+      const outY = bl.y < 0 || bl.y > WORLD_H;
       if (outX || outY) {
         if (bl.kind === 'chicken' && bl.bounces > 0) {
           if (outX) bl.vx = -bl.vx;
           if (outY) bl.vy = -bl.vy;
-          bl.x = Math.max(0, Math.min(ARENA_W, bl.x));
-          bl.y = Math.max(0, Math.min(ARENA_H, bl.y));
+          bl.x = Math.max(0, Math.min(WORLD_W, bl.x));
+          bl.y = Math.max(0, Math.min(WORLD_H, bl.y));
           bl.bounces--;
         } else {
           this.bullets.splice(i, 1);
@@ -767,7 +784,30 @@ export class BattleEngine {
   private render(): void {
     const ctx = this.ctx;
     const night = this.theme === 'night';
-    ctx.drawImage(this.bg, 0, 0);
+
+    // камера следит за обоими танками
+    this.cam = computeCamera(
+      this.tanks.filter((t) => t.hp > 0).map((t) => ({ x: t.x, y: t.y })),
+      ARENA_W,
+      ARENA_H
+    );
+    const z = this.cam.zoom;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, ARENA_W, ARENA_H);
+    ctx.save();
+    ctx.translate(ARENA_W / 2, ARENA_H / 2);
+    ctx.scale(z, z);
+    ctx.translate(-this.cam.x, -this.cam.y);
+
+    // видимый прямоугольник мира
+    const view = {
+      x0: this.cam.x - ARENA_W / 2 / z,
+      y0: this.cam.y - ARENA_H / 2 / z,
+      x1: this.cam.x + ARENA_W / 2 / z,
+      y1: this.cam.y + ARENA_H / 2 / z,
+    };
+    this.drawGround(ctx, view);
 
     // препятствия (разрушаемые ящики и камни)
     this.obstacles.forEach((o) => {
@@ -823,6 +863,8 @@ export class BattleEngine {
     });
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
+
+    ctx.restore();
   }
 
   private drawBullet(ctx: CanvasRenderingContext2D, bl: Bullet, night: boolean): void {
@@ -979,6 +1021,55 @@ export class BattleEngine {
 export function flagGradient(countryId: string): string {
   const c = COUNTRIES[countryId].cols;
   return `linear-gradient(180deg,${c[0]} 33%,${c[1]} 33% 66%,${c[2]} 66%)`;
+}
+
+/** Камера, вписывающая обе точки в вьюпорт vw×vh (мировые координаты). */
+export function computeCamera(
+  pts: { x: number; y: number }[],
+  vw: number,
+  vh: number,
+  minZoom = 0.5,
+  maxZoom = 1.1,
+  pad = 260
+): Camera {
+  if (pts.length === 0) return { x: WORLD_W / 2, y: WORLD_H / 2, zoom: 1 };
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const spanX = maxX - minX + pad * 2;
+  const spanY = maxY - minY + pad * 2;
+  const zoom = Math.max(minZoom, Math.min(maxZoom, Math.min(vw / spanX, vh / spanY)));
+  return { x: cx, y: cy, zoom };
+}
+
+/** Подтянуть две точки к их середине, если они дальше maxSep.
+ *  scratch-like возврат: [ax, ay, bx, by]. */
+export function applyTether(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  maxSep: number
+): [number, number, number, number] {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const d = Math.hypot(dx, dy);
+  if (d <= maxSep || d === 0) return [ax, ay, bx, by];
+  const mx = (ax + bx) / 2;
+  const my = (ay + by) / 2;
+  const half = maxSep / 2;
+  const ux = dx / d;
+  const uy = dy / d;
+  return [mx - ux * half, my - uy * half, mx + ux * half, my + uy * half];
 }
 
 /** Сработала ли мина под танком с центром (tx,ty) и радиусом tr. */

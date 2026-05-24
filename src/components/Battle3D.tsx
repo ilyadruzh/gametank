@@ -1,14 +1,14 @@
 import { useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { Group, Mesh, MeshStandardMaterial } from 'three';
-import { ARENA_H, ARENA_W, type BattleEngine } from '../game/engine';
+import { WORLD_H, WORLD_W, type BattleEngine } from '../game/engine';
 import { computeStats } from '../game/stats';
 import type { CannonKind, PlayerConfig } from '../game/types';
 import TankMesh, { TANK_S } from './three/TankMesh';
 
 const S = TANK_S;
-const WX = (ax: number) => (ax - ARENA_W / 2) * S;
-const WZ = (ay: number) => (ay - ARENA_H / 2) * S;
+const WX = (ax: number) => (ax - WORLD_W / 2) * S;
+const WZ = (ay: number) => (ay - WORLD_H / 2) * S;
 const BULLET_POOL = 80;
 
 const BULLET_COLOR: Record<CannonKind, string> = {
@@ -28,6 +28,7 @@ function Scene({ engineRef, players, night }: { engineRef: React.MutableRefObjec
   const obstacleRefs = useRef<(Mesh | null)[]>([]);
   const mineRefs = useRef<(Group | null)[]>([]);
 
+  const { camera } = useThree();
   const stats = useMemo(() => players.map((p) => computeStats(p)), [players]);
   // статичные объекты берём из первого снапшота движка (позиции не меняются)
   const initial = useMemo(() => engineRef.current?.snapshot() ?? { obstacles: [], mines: [] }, [engineRef]);
@@ -36,6 +37,20 @@ function Scene({ engineRef, players, night }: { engineRef: React.MutableRefObjec
     const eng = engineRef.current;
     if (!eng) return;
     const snap = eng.snapshot();
+
+    // камера следит за серединой танков, отъезжая по расстоянию между ними
+    const alive = snap.tanks.filter((t) => t.hp > 0);
+    if (alive.length) {
+      const mx = alive.reduce((s2, t) => s2 + t.x, 0) / alive.length;
+      const my = alive.reduce((s2, t) => s2 + t.y, 0) / alive.length;
+      let sep = 0;
+      if (alive.length === 2) sep = Math.hypot(alive[0].x - alive[1].x, alive[0].y - alive[1].y);
+      const tx = WX(mx);
+      const tz = WZ(my);
+      const dist = Math.max(16, Math.min(60, sep * S * 1.5 + 16));
+      camera.position.set(tx, dist * 0.95, tz + dist * 0.95);
+      camera.lookAt(tx, 0, tz);
+    }
 
     const refs = [tank0.current, tank1.current];
     snap.tanks.forEach((t) => {
@@ -79,9 +94,9 @@ function Scene({ engineRef, players, night }: { engineRef: React.MutableRefObjec
       <ambientLight intensity={night ? 0.25 : 0.4} />
       <directionalLight position={[12, 26, 10]} intensity={night ? 0.8 : 1.2} castShadow shadow-mapSize={[2048, 2048]} />
 
-      {/* земля под размер арены */}
+      {/* земля под размер мира */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
-        <planeGeometry args={[ARENA_W * S + 4, ARENA_H * S + 4]} />
+        <planeGeometry args={[WORLD_W * S + 4, WORLD_H * S + 4]} />
         <meshStandardMaterial color={night ? '#12181f' : '#e7d9b6'} roughness={1} />
       </mesh>
 
