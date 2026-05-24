@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { applyTether, computeCamera, fanAngles, mineTriggered, WORLD_H, WORLD_W } from '../../src/game/engine';
+import {
+  applyTether,
+  arcRange,
+  computeCamera,
+  fanAngles,
+  isArcKind,
+  mineTriggered,
+  simulateArc,
+  vzForRange,
+  WORLD_H,
+  WORLD_W,
+} from '../../src/game/engine';
 import { CANNONS } from '../../src/game/parts';
 
 describe('fanAngles (веер мультивыстрела)', () => {
@@ -70,6 +81,35 @@ describe('applyTether (привязка танков)', () => {
     const [ax, , bx] = applyTether(0, 0, 2000, 0, 760);
     expect(bx - ax).toBeCloseTo(760, 5);
     expect((ax + bx) / 2).toBeCloseTo(1000, 5); // середина сохраняется
+  });
+});
+
+describe('баллистика навесных снарядов', () => {
+  it('isArcKind: ракета/пукалка по типу, гаубица по id', () => {
+    expect(isArcKind('rocket')).toBe(true);
+    expect(isArcKind('fart')).toBe(true);
+    expect(isArcKind('normal', 'howitzer')).toBe(true);
+    expect(isArcKind('normal', 'gun')).toBe(false);
+    expect(isArcKind('flame')).toBe(false);
+  });
+
+  it('vzForRange и arcRange взаимно обратны', () => {
+    const hspeed = 7;
+    const range = 480;
+    const vz = vzForRange(range, hspeed);
+    expect(arcRange(hspeed, vz)).toBeCloseTo(range, 3);
+  });
+
+  it('simulateArc приземляется примерно на заданной дальности', () => {
+    const hspeed = 7;
+    const range = 400;
+    const vz = vzForRange(range, hspeed);
+    const pts = simulateArc(0, 0, hspeed, 0, vz);
+    expect(pts.length).toBeGreaterThan(2);
+    const land = pts[pts.length - 1];
+    expect(land.z).toBeLessThanOrEqual(0.0001);
+    expect(land.x).toBeGreaterThan(range * 0.6); // дискретная интеграция близко к цели
+    expect(land.x).toBeLessThan(range * 1.4);
   });
 });
 

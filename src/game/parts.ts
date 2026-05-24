@@ -30,6 +30,7 @@ export const CANNONS: Record<string, CannonPart> = {
   tesla: { name: 'Электропушка', desc: 'Быстрый разряд, бьёт больно', kind: 'electric', dmg: 20, reload: 780, bspeed: 16, blen: 34, bw: 6, bullet: 4 },
   fart: { name: 'Пукалка', desc: 'Медленное облако, толкает врага', kind: 'fart', dmg: 7, reload: 460, bspeed: 3.4, blen: 22, bw: 13, bullet: 9, blife: 95, push: 16 },
   chicken: { name: 'Курострел', desc: 'Курицы скачут от стен!', kind: 'chicken', dmg: 16, reload: 780, bspeed: 7, blen: 26, bw: 10, bullet: 7, blife: 220, bounces: 3 },
+  rocket: { name: 'Ракетница', desc: 'Навесная ракета, взрыв по площади', kind: 'rocket', dmg: 26, reload: 1100, bspeed: 7, blen: 30, bw: 10, bullet: 7, blife: 320 },
 };
 
 // "что-то ещё" из ТЗ — корпус, влияет на броню/скорость/габариты.

@@ -17,6 +17,7 @@ const BULLET_COLOR: Record<CannonKind, string> = {
   electric: '#bfeaff',
   fart: '#9bc24a',
   chicken: '#fff7e0',
+  rocket: '#c0392b',
 };
 
 type Eng = BattleEngine;
@@ -73,7 +74,7 @@ function Scene({ engineRef, players, night }: { engineRef: React.MutableRefObjec
       const b = snap.bullets[i];
       if (b) {
         m.visible = true;
-        m.position.set(WX(b.x), 0.45, WZ(b.y));
+        m.position.set(WX(b.x), 0.45 + b.z * 0.6 * S, WZ(b.y));
         m.scale.setScalar(Math.max(0.05, b.size * S));
         (m.material as MeshStandardMaterial).color.set(BULLET_COLOR[b.kind]);
       } else {

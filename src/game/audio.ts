@@ -101,6 +101,10 @@ export function sShoot(key: string): void {
       setTimeout(() => blip(560, 0.05, 'square', 0.5), 70);
       setTimeout(() => blip(820, 0.09, 'triangle', 0.5), 150);
       return;
+    case 'rocket':
+      noiseBurst(0.3, 0.45, 400); // вуш
+      blip(260, 0.18, 'sawtooth', 0.4);
+      return;
     default: {
       const f = ({ mg: 520, gun: 300, howitzer: 180 } as Record<string, number>)[key] ?? 300;
       blip(f, 0.08, 'square', 0.7);

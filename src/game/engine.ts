@@ -90,6 +90,11 @@ interface Bullet {
   kind: CannonKind;
   bounces: number;
   push: number;
+  arc: boolean; // навесной (летит по дуге с высотой z)
+  z: number; // высота над землёй
+  vz: number; // вертикальная скорость
+  aoe: number; // радиус взрыва по приземлении (0 = нет)
+  smoke: boolean; // оставляет дымный след (ракета)
 }
 
 interface Particle {
@@ -225,7 +230,7 @@ export class BattleEngine {
     return {
       over: this.over,
       tanks: this.tanks.map((t) => ({ i: t.i, x: t.x, y: t.y, angle: t.angle, turretAngle: t.turretAngle, elevation: t.elevation, hp: t.hp, maxHp: t.maxHp, flash: t.flash })),
-      bullets: this.bullets.map((b) => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, size: b.size, kind: b.kind })),
+      bullets: this.bullets.map((b) => ({ x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, size: b.size, kind: b.kind })),
       obstacles: this.obstacles.map((o) => ({ x: o.x, y: o.y, r: o.r, type: o.type, hp: o.hp, maxHp: o.maxHp })),
       mines: this.mines.map((m) => ({ x: m.x, y: m.y, r: m.r, armed: m.armed })),
       particles: this.parts.map((p) => ({ x: p.x, y: p.y, size: p.size, color: p.color, life: p.life })),
@@ -293,6 +298,13 @@ export class BattleEngine {
   }
 
   private spawnBullet(t: Tank, angle: number): void {
+    const arc = isArcKind(t.st.cannonKind, t.st.cannon);
+    let vz = 0;
+    if (arc) {
+      const range = 140 + t.elevation * 480; // навес: дальность по возвышению
+      vz = vzForRange(range, t.st.bspeed);
+    }
+    const aoe = t.st.cannonKind === 'rocket' ? 90 : t.st.cannon === 'howitzer' ? 70 : t.st.cannonKind === 'fart' ? 60 : 0;
     this.bullets.push({
       x: t.x + Math.cos(angle) * t.spr.tipDist,
       y: t.y + Math.sin(angle) * t.spr.tipDist,
@@ -305,6 +317,11 @@ export class BattleEngine {
       kind: t.st.cannonKind,
       bounces: t.st.bounces,
       push: t.st.push,
+      arc,
+      z: 0,
+      vz,
+      aoe,
+      smoke: t.st.cannonKind === 'rocket',
     });
   }
 
@@ -645,9 +662,12 @@ export class BattleEngine {
       bl.y += bl.vy * dt;
       bl.life -= dt;
 
-      // поведение в полёте по типу пушки
-      if (bl.kind === 'fart') bl.size = Math.min(bl.size + 0.18 * dt, 18);
-      else if (bl.kind === 'flame' && Math.random() < 0.6) {
+      // дымный след ракеты
+      if (bl.smoke) {
+        this.parts.push({ x: bl.x, y: bl.y, vx: rnd(-0.3, 0.3), vy: rnd(-0.3, 0.3), life: rnd(10, 22), color: '#9a958c', size: rnd(2, 4.5) });
+      }
+      // язычки огня у огнемёта
+      if (bl.kind === 'flame' && Math.random() < 0.6) {
         this.parts.push({
           x: bl.x,
           y: bl.y,
@@ -659,7 +679,19 @@ export class BattleEngine {
         });
       }
 
-      // границы арены: курица отскакивает, остальные гибнут
+      // навесные снаряды: дуга + взрыв по приземлении (в воздухе не сталкиваются)
+      if (bl.arc) {
+        bl.z += bl.vz * dt;
+        bl.vz -= GRAVITY * dt;
+        const outW = bl.x < 0 || bl.x > WORLD_W || bl.y < 0 || bl.y > WORLD_H;
+        if (bl.z <= 0 || bl.life <= 0 || outW) {
+          this.explodeShell(bl);
+          this.bullets.splice(i, 1);
+        }
+        continue;
+      }
+
+      // границы мира: курица отскакивает, остальные гибнут
       const outX = bl.x < 0 || bl.x > WORLD_W;
       const outY = bl.y < 0 || bl.y > WORLD_H;
       if (outX || outY) {
@@ -784,6 +816,37 @@ export class BattleEngine {
     }
   }
 
+  // Взрыв навесного снаряда по площади: урон танкам/ящикам в радиусе.
+  private explodeShell(bl: Bullet): void {
+    const R = bl.aoe || 50;
+    for (const t of this.tanks) {
+      if (t.hp <= 0) continue;
+      const d = Math.hypot(t.x - bl.x, t.y - bl.y);
+      const reach = R + t.st.radius;
+      if (d < reach) {
+        const frac = 1 - Math.min(1, d / reach);
+        t.hp -= Math.max(4, bl.dmg * frac);
+        const nd = d || 1;
+        t.x += ((t.x - bl.x) / nd) * 10 * frac;
+        t.y += ((t.y - bl.y) / nd) * 10 * frac;
+        sHit();
+        if (t.hp <= 0) {
+          t.hp = 0;
+          this.explode(t);
+        }
+      }
+    }
+    for (let oi = this.obstacles.length - 1; oi >= 0; oi--) {
+      const o = this.obstacles[oi];
+      if (o.destructible && Math.hypot(o.x - bl.x, o.y - bl.y) < R + o.r) {
+        this.crackParticles(o);
+        this.obstacles.splice(oi, 1);
+      }
+    }
+    this.sparks(bl.x, bl.y, '#e8541e', 22);
+    sBoom();
+  }
+
   private crackParticles(o: Obstacle): void {
     for (let i = 0; i < 16; i++) {
       const a = Math.random() * 7;
@@ -858,6 +921,11 @@ export class BattleEngine {
 
     this.bullets.forEach((bl) => this.drawBullet(ctx, bl, night));
 
+    // предсказанная траектория навесного оружия (для людей)
+    this.tanks.forEach((t) => {
+      if (t.hp > 0 && !this.aiControlled(t) && isArcKind(t.st.cannonKind, t.st.cannon)) this.drawTrajectory(ctx, t);
+    });
+
     this.tanks.forEach((t) => {
       if (t.hp <= 0) return;
       ctx.save();
@@ -915,6 +983,24 @@ export class BattleEngine {
   }
 
   private drawBullet(ctx: CanvasRenderingContext2D, bl: Bullet, night: boolean): void {
+    if (bl.arc) {
+      // тень на земле + подъём снаряда по высоте z
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,.22)';
+      ctx.beginPath();
+      ctx.ellipse(bl.x, bl.y, bl.size * 1.2, bl.size * 0.6, 0, 0, 7);
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      ctx.translate(0, -bl.z * 0.6);
+      this.drawProjectile(ctx, bl, night);
+      ctx.restore();
+      return;
+    }
+    this.drawProjectile(ctx, bl, night);
+  }
+
+  private drawProjectile(ctx: CanvasRenderingContext2D, bl: Bullet, night: boolean): void {
     switch (bl.kind) {
       case 'flame':
         return this.drawFlame(ctx, bl);
@@ -924,9 +1010,70 @@ export class BattleEngine {
         return this.drawFart(ctx, bl);
       case 'chicken':
         return this.drawChicken(ctx, bl);
+      case 'rocket':
+        return this.drawRocket(ctx, bl);
       default:
         return this.drawNormalBullet(ctx, bl, night);
     }
+  }
+
+  private drawRocket(ctx: CanvasRenderingContext2D, bl: Bullet): void {
+    const s = bl.size;
+    ctx.save();
+    ctx.translate(bl.x, bl.y);
+    ctx.rotate(Math.atan2(bl.vy, bl.vx));
+    // корпус ракеты
+    ctx.fillStyle = '#c0392b';
+    ctx.strokeStyle = '#27241d';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(s * 1.6, 0);
+    ctx.lineTo(s * 0.4, -s * 0.7);
+    ctx.lineTo(-s, -s * 0.7);
+    ctx.lineTo(-s, s * 0.7);
+    ctx.lineTo(s * 0.4, s * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // хвостовое пламя
+    ctx.fillStyle = '#ffce4a';
+    ctx.beginPath();
+    ctx.moveTo(-s, -s * 0.5);
+    ctx.lineTo(-s * 2.2, 0);
+    ctx.lineTo(-s, s * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawTrajectory(ctx: CanvasRenderingContext2D, t: Tank): void {
+    const a = t.turretAngle;
+    const mx = t.x + Math.cos(a) * t.spr.tipDist;
+    const my = t.y + Math.sin(a) * t.spr.tipDist;
+    const range = 140 + t.elevation * 480;
+    const vz = vzForRange(range, t.st.bspeed);
+    const pts = simulateArc(mx, my, Math.cos(a) * t.st.bspeed, Math.sin(a) * t.st.bspeed, vz);
+    ctx.save();
+    ctx.strokeStyle = t.ctrl.ring;
+    ctx.globalAlpha = 0.5;
+    ctx.setLineDash([4, 8]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i += 4) {
+      const p = pts[i];
+      const sy = p.y - p.z * 0.6;
+      if (i === 0) ctx.moveTo(p.x, sy);
+      else ctx.lineTo(p.x, sy);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // отметка точки приземления
+    const land = pts[pts.length - 1];
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.arc(land.x, land.y, 6, 0, 7);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawMine(ctx: CanvasRenderingContext2D, m: Mine): void {
@@ -1068,6 +1215,49 @@ export class BattleEngine {
 export function flagGradient(countryId: string): string {
   const c = COUNTRIES[countryId].cols;
   return `linear-gradient(180deg,${c[0]} 33%,${c[1]} 33% 66%,${c[2]} 66%)`;
+}
+
+export const GRAVITY = 0.06; // «гравитация» для навесных снарядов (z за тик^2)
+
+/** Навесные ли снаряды (ракета/пукалка по kind, гаубица по id пушки). */
+export function isArcKind(kind: CannonKind, cannon = ''): boolean {
+  return kind === 'rocket' || kind === 'fart' || cannon === 'howitzer';
+}
+
+/** Вертикальная скорость, чтобы навесной снаряд пролетел дальность range. */
+export function vzForRange(range: number, hspeed: number, g = GRAVITY): number {
+  return (g * range) / (2 * Math.max(0.01, hspeed));
+}
+
+/** Горизонтальная дальность навесного снаряда по вертикальной скорости. */
+export function arcRange(hspeed: number, vz: number, g = GRAVITY): number {
+  return (hspeed * (2 * vz)) / g;
+}
+
+/** Сэмплированная траектория навесного снаряда до приземления (для предпросмотра). */
+export function simulateArc(
+  x: number,
+  y: number,
+  vx: number,
+  vy: number,
+  vz: number,
+  g = GRAVITY,
+  maxSteps = 600
+): { x: number; y: number; z: number }[] {
+  const pts: { x: number; y: number; z: number }[] = [];
+  let z = 0;
+  let cvz = vz;
+  let cx = x;
+  let cy = y;
+  for (let i = 0; i < maxSteps; i++) {
+    z += cvz;
+    cvz -= g;
+    cx += vx;
+    cy += vy;
+    pts.push({ x: cx, y: cy, z: Math.max(0, z) });
+    if (z <= 0 && i > 0) break;
+  }
+  return pts;
 }
 
 /** Кратчайшая разница углов (модуль), рад. */
