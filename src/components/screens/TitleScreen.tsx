@@ -7,6 +7,8 @@ export default function TitleScreen() {
   const openCampaign = useGame((s) => s.openCampaign);
   const theme = useGame((s) => s.theme);
   const toggleTheme = useGame((s) => s.toggleTheme);
+  const music = useGame((s) => s.music);
+  const toggleMusic = useGame((s) => s.toggleMusic);
   const [showHow, setShowHow] = useState(false);
 
   const start = (mode: 'versus' | 'bot') => {
@@ -42,6 +44,16 @@ export default function TitleScreen() {
         </button>
         <button className="btn ghost" data-testid="btn-theme" onClick={toggleTheme}>
           {theme === 'day' ? '🌙 Ночь' : '☀️ День'}
+        </button>
+        <button
+          className="btn ghost"
+          data-testid="btn-music"
+          onClick={() => {
+            initAudio();
+            toggleMusic();
+          }}
+        >
+          {music ? '🎵 Музыка' : '🔇 Музыка'}
         </button>
       </div>
       {showHow && (

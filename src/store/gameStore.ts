@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { defaultConfig } from '../game/parts';
 import { computeUnlocked, loadCompleted, sanitizeConfig, saveCompleted } from '../game/campaign';
-import { loadTheme, loadView, saveTheme, saveView } from '../game/settings';
+import { loadMusic, loadTheme, loadView, saveMusic, saveTheme, saveView } from '../game/settings';
 import { missionById } from '../game/missions';
 import type { ControlMode, PartCategory, PlayerConfig, Theme, View } from '../game/types';
 import type { BattleMode } from '../game/engine';
@@ -14,6 +14,7 @@ interface GameState {
   players: [PlayerConfig, PlayerConfig];
   buildIndex: 0 | 1;
   muted: boolean;
+  music: boolean;
   theme: Theme;
   view: View;
   result: { winner: number } | null;
@@ -34,6 +35,7 @@ interface GameState {
   rebuild: () => void;
   toMenu: () => void;
   toggleMute: () => void;
+  toggleMusic: () => void;
   toggleTheme: () => void;
   toggleView: () => void;
 
@@ -51,6 +53,7 @@ export const useGame = create<GameState>((set, get) => ({
   players: [defaultConfig(), { ...defaultConfig(), country: 'aqu' }],
   buildIndex: 0,
   muted: false,
+  music: loadMusic(),
   theme: loadTheme(),
   view: loadView(),
   result: null,
@@ -122,6 +125,12 @@ export const useGame = create<GameState>((set, get) => ({
   rebuild: () => set({ screen: 'build', buildIndex: 0, result: null }),
   toMenu: () => set({ screen: 'title', result: null }),
   toggleMute: () => set((s) => ({ muted: !s.muted })),
+  toggleMusic: () =>
+    set((s) => {
+      const music = !s.music;
+      saveMusic(music);
+      return { music };
+    }),
   toggleTheme: () =>
     set((s) => {
       const theme: Theme = s.theme === 'day' ? 'night' : 'day';

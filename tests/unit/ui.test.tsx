@@ -21,6 +21,7 @@ function resetStore() {
     players: [defaultConfig(), { ...defaultConfig(), country: 'aqu' }],
     buildIndex: 0,
     muted: false,
+    music: true,
     theme: 'day',
     view: '2d',
     result: null,
@@ -141,6 +142,15 @@ describe('UI: конструктор', () => {
     expect(useGame.getState().players[0].faceId).toBe('silly');
   });
 
+  it('в гараже есть новые персонажи (пукалка)', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByTestId('btn-start-versus'));
+    await user.click(screen.getByTestId('garage-vonyuchka'));
+    expect(screen.getByTestId('prev-name')).toHaveTextContent('Пукалка');
+    expect(useGame.getState().players[0].cannon).toBe('fart');
+  });
+
   it('управление мышью у одного игрока сбрасывает мышь у другого', async () => {
     const user = userEvent.setup();
     await renderApp();
@@ -175,6 +185,16 @@ describe('UI: бой и исход', () => {
     expect(screen.getByTestId('btn-mute')).toHaveTextContent('🔊');
     await user.click(screen.getByTestId('btn-mute'));
     expect(screen.getByTestId('btn-mute')).toHaveTextContent('🔇');
+  });
+
+  it('кнопка музыки переключает music в сторе', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByTestId('btn-start-bot'));
+    await user.click(screen.getByTestId('btn-next'));
+    expect(useGame.getState().music).toBe(true);
+    await user.click(screen.getByTestId('btn-music'));
+    expect(useGame.getState().music).toBe(false);
   });
 
   it('кнопка вида переключает 2D/3D в сторе', async () => {

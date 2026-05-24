@@ -3,6 +3,7 @@ import { useGame } from '../../store/gameStore';
 import { COUNTRIES } from '../../game/parts';
 import { missionById } from '../../game/missions';
 import { ARENA_H, ARENA_W, BattleEngine, flagGradient, type BattleOptions } from '../../game/engine';
+import { sWin } from '../../game/audio';
 import { getPhysics } from '../../wasm/loader';
 
 const Battle3D = lazy(() => import('../Battle3D'));
@@ -11,6 +12,8 @@ export default function BattleScreen() {
   const players = useGame((s) => s.players);
   const mode = useGame((s) => s.mode);
   const muted = useGame((s) => s.muted);
+  const music = useGame((s) => s.music);
+  const toggleMusic = useGame((s) => s.toggleMusic);
   const theme = useGame((s) => s.theme);
   const toggleTheme = useGame((s) => s.toggleTheme);
   const view = useGame((s) => s.view);
@@ -61,6 +64,7 @@ export default function BattleScreen() {
         },
         onWin: (winner) => {
           if (isCampaign && winner === 0 && currentMissionId) completeMission(currentMissionId);
+          sWin();
           setResult(winner);
         },
         onTimer: (secs) => setTimerLeft(secs),
@@ -113,6 +117,9 @@ export default function BattleScreen() {
         <div className="topbar">
           <button className="iconbtn" data-testid="btn-mute" title="звук" onClick={toggleMute}>
             {muted ? '🔇' : '🔊'}
+          </button>
+          <button className="iconbtn" data-testid="btn-music" title="музыка" onClick={toggleMusic}>
+            {music ? '🎵' : '🎜'}
           </button>
           <button className="iconbtn" data-testid="btn-view" title="2D / 3D" onClick={toggleView}>
             {view === '2d' ? '🧊' : '🗺️'}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGame } from './store/gameStore';
 import { initPhysics } from './wasm/loader';
-import { setMuted } from './game/audio';
+import { setMuted, setMusicOn } from './game/audio';
 import TitleScreen from './components/screens/TitleScreen';
 import CampaignScreen from './components/screens/CampaignScreen';
 import BuildScreen from './components/screens/BuildScreen';
@@ -10,6 +10,7 @@ import BattleScreen from './components/screens/BattleScreen';
 export default function App() {
   const screen = useGame((s) => s.screen);
   const muted = useGame((s) => s.muted);
+  const music = useGame((s) => s.music);
   const theme = useGame((s) => s.theme);
   const [physReady, setPhysReady] = useState(false);
 
@@ -26,6 +27,10 @@ export default function App() {
   useEffect(() => {
     setMuted(muted);
   }, [muted]);
+
+  useEffect(() => {
+    setMusicOn(music);
+  }, [music]);
 
   // Тестовый хук: в dev-сборке отдаём store наружу для E2E (Playwright).
   useEffect(() => {

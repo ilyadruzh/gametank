@@ -79,4 +79,12 @@ describe('gameStore — переходы экранов', () => {
     useGame.getState().toggleView();
     expect(useGame.getState().view).toBe('2d');
   });
+
+  it('toggleMusic переключает музыку и сохраняет', () => {
+    localStorage.clear();
+    useGame.setState({ music: true });
+    useGame.getState().toggleMusic();
+    expect(useGame.getState().music).toBe(false);
+    expect(localStorage.getItem('tankoboy.music.v1')).toBe('off');
+  });
 });

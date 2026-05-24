@@ -1,7 +1,7 @@
 // Боевой движок: симуляция на 2D-канвасе. Вся кинематика и столкновения
 // считаются в WASM-ядре (physics.wasm) — JS только читает результаты из scratch
 // и рисует кадр.
-import { sBoom, sHit, sShoot } from './audio';
+import { sBoom, setEngineLevel, sHit, sMine, sShoot, startEngineHum, stopEngineHum } from './audio';
 import { COUNTRIES } from './parts';
 import { rnd, sketchCircle, sketchLine, sketchRect } from './sketch';
 import { buildSprite, type TankSprite } from './sprite';
@@ -359,6 +359,7 @@ export class BattleEngine {
     this.canvas.addEventListener('mousemove', this.onMouseMove);
     this.canvas.addEventListener('mousedown', this.onMouseDown);
     window.addEventListener('mouseup', this.onMouseUp);
+    startEngineHum();
     this.cb.onHp(this.hpRatio(0), this.hpRatio(1));
     this.last = performance.now();
     this.startTime = this.last;
@@ -371,6 +372,7 @@ export class BattleEngine {
 
   destroy(): void {
     this.running = false;
+    stopEngineHum();
     cancelAnimationFrame(this.rafId);
     if (this.winTimeout) clearTimeout(this.winTimeout);
     window.removeEventListener('keydown', this.onKeyDown);
@@ -571,7 +573,7 @@ export class BattleEngine {
         victim.y += (dy / d) * 14;
         victim.spd *= 0.4;
         this.sparks(m.x, m.y, '#e8541e', 18);
-        sBoom();
+        sMine();
         this.mines.splice(mi, 1);
         if (victim.hp <= 0) {
           victim.hp = 0;
@@ -709,6 +711,11 @@ export class BattleEngine {
         this.winTimeout = setTimeout(() => this.cb.onWin(0), 300);
       }
     }
+
+    // гул мотора по суммарной скорости танков
+    let lvl = 0;
+    for (const t of this.tanks) if (t.hp > 0) lvl = Math.max(lvl, Math.abs(t.spd) / 3);
+    setEngineLevel(lvl);
 
     this.cb.onHp(this.hpRatio(0), this.hpRatio(1));
   }

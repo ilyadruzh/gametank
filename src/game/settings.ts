@@ -20,6 +20,24 @@ export function saveTheme(theme: Theme): void {
   }
 }
 
+const MUSIC_KEY = 'tankoboy.music.v1';
+
+export function loadMusic(): boolean {
+  try {
+    return localStorage.getItem(MUSIC_KEY) !== 'off'; // музыка включена по умолчанию
+  } catch {
+    return true;
+  }
+}
+
+export function saveMusic(on: boolean): void {
+  try {
+    localStorage.setItem(MUSIC_KEY, on ? 'on' : 'off');
+  } catch {
+    /* недоступно */
+  }
+}
+
 export function loadView(): View {
   try {
     return localStorage.getItem(VIEW_KEY) === '3d' ? '3d' : '2d';

@@ -177,6 +177,21 @@ test.describe('Гараж и спецпушки', () => {
     await page.getByTestId('card-cannon-chicken').click();
     await expect(page.getByTestId('prev-name')).toContainText('Курострел');
   });
+
+  test('новые персонажи гаража (Вонючка с пукалкой)', async ({ page }) => {
+    await page.getByTestId('btn-start-versus').click();
+    await page.getByTestId('garage-vonyuchka').click();
+    await expect(page.getByTestId('prev-name')).toContainText('Пукалка');
+  });
+});
+
+test.describe('Музыка', () => {
+  test('тумблер музыки на титуле переключается', async ({ page }) => {
+    const btn = page.getByTestId('btn-music');
+    await expect(btn).toContainText('Музыка');
+    await btn.click();
+    await expect(btn).toContainText('🔇');
+  });
 });
 
 test.describe('Управление мышью', () => {

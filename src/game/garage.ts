@@ -1,9 +1,9 @@
-// Гараж танков-персонажей в духе анимаций про оживших танков (оригинальные
-// дизайны, без копирования защищённых персонажей). Каждый — готовый пресет,
-// который можно выбрать целиком, а потом докрутить в конструкторе.
+// Гараж танков-характеров. Это НАШИ оригинальные дизайны «в духе жанра»
+// (ожившие танки с лицами), а НЕ копии персонажей сериала Gerand — авторские
+// права. Каждый — готовый пресет: выбираешь целиком, потом докручиваешь.
 import type { PlayerConfig } from './types';
 
-export type FaceId = 'happy' | 'angry' | 'silly' | 'fang' | 'grumpy';
+export type FaceId = 'happy' | 'angry' | 'silly' | 'fang' | 'grumpy' | 'cool' | 'derp';
 
 export interface GarageTank {
   id: string;
@@ -13,47 +13,43 @@ export interface GarageTank {
   config: PlayerConfig;
 }
 
+const tank = (
+  id: string,
+  name: string,
+  personality: string,
+  faceId: FaceId,
+  config: Omit<PlayerConfig, 'faceId' | 'control'>
+): GarageTank => ({ id, name, personality, faceId, config: { ...config, faceId, control: 'keys' } });
+
 export const GERAND_TANKS: GarageTank[] = [
-  {
-    id: 'beep',
-    name: 'Малыш Бип',
-    personality: 'Шустрый трусишка, удирает и пощёлкивает',
-    faceId: 'happy',
-    config: { country: 'aqu', tracks: 'sport', turret: 'small', cannon: 'mg', hull: 'scout', faceId: 'happy', control: 'keys' },
-  },
-  {
-    id: 'broneboy',
-    name: 'Бронебой',
-    personality: 'Злой здоровяк, ломится напролом',
-    faceId: 'angry',
-    config: { country: 'rud', tracks: 'heavy', turret: 'big', cannon: 'gun', hull: 'bunker', faceId: 'angry', control: 'keys' },
-  },
-  {
-    id: 'kurokidala',
-    name: 'Курокидала',
-    personality: 'Хохмач — стреляет курицами!',
-    faceId: 'silly',
-    config: { country: 'grn', tracks: 'medium', turret: 'twin', cannon: 'chicken', hull: 'standard', faceId: 'silly', control: 'keys' },
-  },
-  {
-    id: 'drakosha',
-    name: 'Дракоша',
-    personality: 'Огнедышащий зубастик',
-    faceId: 'fang',
-    config: { country: 'vul', tracks: 'medium', turret: 'big', cannon: 'flame', hull: 'standard', faceId: 'fang', control: 'keys' },
-  },
-  {
-    id: 'gromozeka',
-    name: 'Громозека',
-    personality: 'Ворчливая крепость с гаубицей',
-    faceId: 'grumpy',
-    config: { country: 'sol', tracks: 'siege', turret: 'big', cannon: 'howitzer', hull: 'fortress', faceId: 'grumpy', control: 'keys' },
-  },
-  {
-    id: 'sparky',
-    name: 'Электрончик',
-    personality: 'Бодрый разрядник, бьёт током',
-    faceId: 'happy',
-    config: { country: 'nor', tracks: 'light', turret: 'twin', cannon: 'tesla', hull: 'scout', faceId: 'happy', control: 'keys' },
-  },
+  tank('beep', 'Малыш Бип', 'Шустрый трусишка, удирает и пощёлкивает', 'happy', {
+    country: 'aqu', tracks: 'sport', turret: 'small', cannon: 'mg', hull: 'scout',
+  }),
+  tank('broneboy', 'Бронебой', 'Злой здоровяк, ломится напролом', 'angry', {
+    country: 'rud', tracks: 'heavy', turret: 'big', cannon: 'gun', hull: 'bunker',
+  }),
+  tank('kurokidala', 'Курокидала', 'Хохмач — стреляет курицами!', 'silly', {
+    country: 'grn', tracks: 'medium', turret: 'twin', cannon: 'chicken', hull: 'standard',
+  }),
+  tank('drakosha', 'Дракоша', 'Огнедышащий зубастик', 'fang', {
+    country: 'vul', tracks: 'medium', turret: 'big', cannon: 'flame', hull: 'standard',
+  }),
+  tank('gromozeka', 'Громозека', 'Ворчливая крепость с гаубицей', 'grumpy', {
+    country: 'sol', tracks: 'siege', turret: 'big', cannon: 'howitzer', hull: 'fortress',
+  }),
+  tank('sparky', 'Электрончик', 'Бодрый разрядник, бьёт током', 'happy', {
+    country: 'nor', tracks: 'light', turret: 'twin', cannon: 'tesla', hull: 'scout',
+  }),
+  tank('vonyuchka', 'Вонючка', 'Газовый шутник — толкает врага «пшиком»', 'derp', {
+    country: 'grn', tracks: 'medium', turret: 'small', cannon: 'fart', hull: 'standard',
+  }),
+  tank('steklyashka', 'Стекляшка', 'Хрупкий франт в очках, бьёт точно', 'cool', {
+    country: 'aqu', tracks: 'sport', turret: 'small', cannon: 'gun', hull: 'glass',
+  }),
+  tank('nosorog', 'Носорог', 'Бронированный таран с гаубицей', 'angry', {
+    country: 'sol', tracks: 'heavy', turret: 'big', cannon: 'howitzer', hull: 'bunker',
+  }),
+  tank('shmyg', 'Шмыг', 'Самый быстрый разведчик в гараже', 'derp', {
+    country: 'nor', tracks: 'sport', turret: 'small', cannon: 'mg', hull: 'scout',
+  }),
 ];
