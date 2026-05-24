@@ -6,7 +6,7 @@ import { COUNTRIES } from './parts';
 import { rnd, sketchCircle, sketchLine, sketchRect } from './sketch';
 import { buildSprite, type TankSprite } from './sprite';
 import { computeStats } from './stats';
-import type { Difficulty, PlayerConfig, TankStats } from './types';
+import type { Difficulty, PlayerConfig, TankStats, Theme } from './types';
 import type { ObjectiveKind } from './missions';
 import type { PhysicsModule } from '../wasm/loader';
 
@@ -92,6 +92,7 @@ export interface BattleCallbacks {
 export interface BattleOptions {
   difficulty?: Difficulty;
   objective?: BattleObjective;
+  theme?: Theme;
 }
 
 const P1_CONTROLS: Controls = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', fire: 'Space', ring: '#2f6fb0' };
@@ -126,6 +127,7 @@ export class BattleEngine {
 
   private difficulty: Difficulty;
   private objective?: BattleObjective;
+  private theme: Theme;
   private startTime = 0;
   private lastTimerShown = -1;
 
@@ -146,6 +148,7 @@ export class BattleEngine {
     this.cb = cb;
     this.difficulty = opts.difficulty ?? 'normal';
     this.objective = opts.objective;
+    this.theme = opts.theme ?? 'day';
     this.bg = document.createElement('canvas');
 
     this.spawnObstacles();
@@ -201,18 +204,28 @@ export class BattleEngine {
     this.bg.width = W;
     this.bg.height = H;
     const c = this.bg.getContext('2d')!;
-    c.fillStyle = '#f3ead2';
+    const night = this.theme === 'night';
+    c.fillStyle = night ? '#10151c' : '#f3ead2';
     c.fillRect(0, 0, W, H);
-    c.globalAlpha = 0.5;
+    c.globalAlpha = night ? 0.35 : 0.5;
     for (let y = 70; y < H; y += 95) {
       sketchLine(c, 10, y + Math.sin(y) * 4, W - 10, y + Math.cos(y) * 6, {
-        color: '#b9aaae',
+        color: night ? '#3a4a63' : '#b9aaae',
         w: 1.4,
         passes: 1,
         wob: 2.4,
       });
     }
     c.globalAlpha = 1;
+    if (night) {
+      // редкие «звёзды»
+      c.fillStyle = 'rgba(220,230,255,.5)';
+      for (let i = 0; i < 60; i++) {
+        c.beginPath();
+        c.arc(Math.random() * W, Math.random() * H, Math.random() * 1.2 + 0.3, 0, 7);
+        c.fill();
+      }
+    }
     this.obstacles.forEach((o) => {
       if (o.type === 'box') {
         sketchRect(c, o.x - o.r, o.y - o.r, o.r * 2, o.r * 2, { fill: '#cdb37e', color: '#27241d', w: 2.4, r: 4 });
@@ -486,20 +499,10 @@ export class BattleEngine {
 
   private render(): void {
     const ctx = this.ctx;
+    const night = this.theme === 'night';
     ctx.drawImage(this.bg, 0, 0);
 
-    this.bullets.forEach((bl) => {
-      ctx.fillStyle = '#27241d';
-      ctx.beginPath();
-      ctx.arc(bl.x, bl.y, bl.size, 0, 7);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,.25)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(bl.x - bl.vx, bl.y - bl.vy);
-      ctx.lineTo(bl.x, bl.y);
-      ctx.stroke();
-    });
+    this.bullets.forEach((bl) => this.drawBullet(ctx, bl, night));
 
     this.tanks.forEach((t) => {
       if (t.hp <= 0) return;
@@ -515,10 +518,15 @@ export class BattleEngine {
       ctx.rotate(t.angle);
       ctx.drawImage(t.spr.canvas, -t.spr.pivotX, -t.spr.pivotY);
       if (t.flash > 0) {
+        if (night) {
+          ctx.shadowColor = '#ffd36b';
+          ctx.shadowBlur = 16;
+        }
         ctx.fillStyle = 'rgba(255,200,60,' + t.flash / 6 + ')';
         ctx.beginPath();
         ctx.arc(t.spr.tipDist - 2, 0, 7, 0, 7);
         ctx.fill();
+        ctx.shadowBlur = 0;
       }
       ctx.restore();
       ctx.fillStyle = t.ctrl.ring;
@@ -527,6 +535,10 @@ export class BattleEngine {
       ctx.fillText('P' + (t.i + 1), t.x, t.y - t.st.radius - 12);
     });
 
+    if (night) {
+      ctx.shadowColor = 'rgba(255,180,80,.9)';
+      ctx.shadowBlur = 8;
+    }
     this.parts.forEach((p) => {
       ctx.globalAlpha = Math.min(1, p.life / 20);
       ctx.fillStyle = p.color;
@@ -535,6 +547,25 @@ export class BattleEngine {
       ctx.fill();
     });
     ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+
+  private drawBullet(ctx: CanvasRenderingContext2D, bl: Bullet, night: boolean): void {
+    ctx.fillStyle = night ? '#ffe9b0' : '#27241d';
+    if (night) {
+      ctx.shadowColor = '#ffd36b';
+      ctx.shadowBlur = 10;
+    }
+    ctx.beginPath();
+    ctx.arc(bl.x, bl.y, bl.size, 0, 7);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = night ? 'rgba(255,220,150,.4)' : 'rgba(0,0,0,.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(bl.x - bl.vx, bl.y - bl.vy);
+    ctx.lineTo(bl.x, bl.y);
+    ctx.stroke();
   }
 }
 

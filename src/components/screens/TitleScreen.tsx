@@ -5,6 +5,8 @@ import { initAudio } from '../../game/audio';
 export default function TitleScreen() {
   const startBuild = useGame((s) => s.startBuild);
   const openCampaign = useGame((s) => s.openCampaign);
+  const theme = useGame((s) => s.theme);
+  const toggleTheme = useGame((s) => s.toggleTheme);
   const [showHow, setShowHow] = useState(false);
 
   const start = (mode: 'versus' | 'bot') => {
@@ -37,6 +39,9 @@ export default function TitleScreen() {
       <div className="mode-row" style={{ marginTop: 8 }}>
         <button className="btn ghost" data-testid="btn-how" onClick={() => setShowHow((v) => !v)}>
           Как играть?
+        </button>
+        <button className="btn ghost" data-testid="btn-theme" onClick={toggleTheme}>
+          {theme === 'day' ? '🌙 Ночь' : '☀️ День'}
         </button>
       </div>
       {showHow && (

@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import type { Group } from 'three';
 import type { TankStats } from '../game/types';
+import { useGame } from '../store/gameStore';
 
 const S = 0.045; // масштаб игровых единиц в 3D
 
@@ -54,16 +55,17 @@ function TankModel({ stats }: { stats: TankStats }) {
 }
 
 export default function TankPreview3D({ stats }: { stats: TankStats }) {
+  const night = useGame((s) => s.theme) === 'night';
   return (
     <div className="preview-3d" data-testid="preview-3d">
       <Canvas shadows camera={{ position: [3.4, 2.6, 4.2], fov: 42 }} dpr={[1, 2]}>
-        <color attach="background" args={['#fffdf4']} />
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[4, 7, 5]} intensity={1.1} castShadow shadow-mapSize={[1024, 1024]} />
+        <color attach="background" args={[night ? '#161c26' : '#fffdf4']} />
+        <ambientLight intensity={night ? 0.4 : 0.7} />
+        <directionalLight position={[4, 7, 5]} intensity={night ? 0.8 : 1.1} castShadow shadow-mapSize={[1024, 1024]} />
         <TankModel stats={stats} />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.55, 0]} receiveShadow>
           <planeGeometry args={[14, 14]} />
-          <meshStandardMaterial color="#efe3c6" roughness={1} />
+          <meshStandardMaterial color={night ? '#1d2530' : '#efe3c6'} roughness={1} />
         </mesh>
         <OrbitControls enablePan={false} minDistance={3} maxDistance={9} enableDamping />
       </Canvas>

@@ -540,3 +540,50 @@ h1.logo {
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* ---------- НОЧНОЙ РЕЖИМ ---------- */
+#app[data-theme='night'] {
+  --paper: #1f2530;
+  --ink: #e8eef6;
+  --ink-soft: #9aa6b6;
+  --accent: #f2a93b;
+  color: var(--ink);
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(120, 150, 200, 0.08) 31px, rgba(120, 150, 200, 0.08) 32px),
+    radial-gradient(120% 120% at 0% 0%, #2a3340, #1b2230 70%, #141a24 100%);
+}
+#app[data-theme='night'] .btn,
+#app[data-theme='night'] .iconbtn {
+  background: #2b3442;
+  color: var(--ink);
+  border-color: #0b0e13;
+}
+#app[data-theme='night'] .btn.primary {
+  background: var(--accent);
+  color: #1b1b1b;
+}
+#app[data-theme='night'] .card,
+#app[data-theme='night'] .stats,
+#app[data-theme='night'] #preview-box,
+#app[data-theme='night'] .briefing,
+#app[data-theme='night'] .hud .side {
+  background: #28303c;
+  border-color: #10151c;
+}
+#app[data-theme='night'] .card.selected {
+  background: #46401f;
+}
+#app[data-theme='night'] #arena {
+  background: #0f141c;
+  border-color: #0b0e13;
+}
+#app[data-theme='night'] .bar,
+#app[data-theme='night'] .hp {
+  background: #3a4350;
+}
+#app[data-theme='night'] .player-badge {
+  color: #1b1b1b;
+}
+#app[data-theme='night'] .logo {
+  text-shadow: 3px 4px 0 rgba(0, 0, 0, 0.5);
+}

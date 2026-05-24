@@ -10,6 +10,7 @@ import BattleScreen from './components/screens/BattleScreen';
 export default function App() {
   const screen = useGame((s) => s.screen);
   const muted = useGame((s) => s.muted);
+  const theme = useGame((s) => s.theme);
   const [physReady, setPhysReady] = useState(false);
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export default function App() {
   }, []);
 
   return (
-    <div id="app" data-testid="app">
+    <div id="app" data-testid="app" data-theme={theme}>
       {!physReady && (
         <section className="screen" data-testid="screen-loading">
           <div className="loading">Загружаем боевые модули…</div>

@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { defaultConfig } from '../game/parts';
 import { computeUnlocked, loadCompleted, sanitizeConfig, saveCompleted } from '../game/campaign';
+import { loadTheme, saveTheme } from '../game/settings';
 import { missionById } from '../game/missions';
-import type { PartCategory, PlayerConfig } from '../game/types';
+import type { PartCategory, PlayerConfig, Theme } from '../game/types';
 import type { BattleMode } from '../game/engine';
 
 export type Screen = 'title' | 'campaign' | 'build' | 'battle';
@@ -13,6 +14,7 @@ interface GameState {
   players: [PlayerConfig, PlayerConfig];
   buildIndex: 0 | 1;
   muted: boolean;
+  theme: Theme;
   result: { winner: number } | null;
 
   // кампания
@@ -29,6 +31,7 @@ interface GameState {
   rebuild: () => void;
   toMenu: () => void;
   toggleMute: () => void;
+  toggleTheme: () => void;
 
   openCampaign: () => void;
   selectMission: (id: string) => void;
@@ -44,6 +47,7 @@ export const useGame = create<GameState>((set, get) => ({
   players: [defaultConfig(), { ...defaultConfig(), country: 'aqu' }],
   buildIndex: 0,
   muted: false,
+  theme: loadTheme(),
   result: null,
 
   completed: loadCompleted(),
@@ -93,6 +97,12 @@ export const useGame = create<GameState>((set, get) => ({
   rebuild: () => set({ screen: 'build', buildIndex: 0, result: null }),
   toMenu: () => set({ screen: 'title', result: null }),
   toggleMute: () => set((s) => ({ muted: !s.muted })),
+  toggleTheme: () =>
+    set((s) => {
+      const theme: Theme = s.theme === 'day' ? 'night' : 'day';
+      saveTheme(theme);
+      return { theme };
+    }),
 
   openCampaign: () => set({ screen: 'campaign', result: null, currentMissionId: null }),
 

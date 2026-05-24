@@ -9,6 +9,8 @@ export default function BattleScreen() {
   const players = useGame((s) => s.players);
   const mode = useGame((s) => s.mode);
   const muted = useGame((s) => s.muted);
+  const theme = useGame((s) => s.theme);
+  const toggleTheme = useGame((s) => s.toggleTheme);
   const result = useGame((s) => s.result);
   const currentMissionId = useGame((s) => s.currentMissionId);
   const setResult = useGame((s) => s.setResult);
@@ -36,7 +38,7 @@ export default function BattleScreen() {
       setNoPhys(!phys);
       return;
     }
-    const opts: BattleOptions = {};
+    const opts: BattleOptions = { theme };
     if (mission) {
       opts.difficulty = mission.difficulty;
       opts.objective = { kind: mission.objective.kind, duration: mission.objective.duration };
@@ -90,6 +92,17 @@ export default function BattleScreen() {
         <div className="topbar">
           <button className="iconbtn" data-testid="btn-mute" title="звук" onClick={toggleMute}>
             {muted ? '🔇' : '🔊'}
+          </button>
+          <button
+            className="iconbtn"
+            data-testid="btn-theme-battle"
+            title="день/ночь"
+            onClick={() => {
+              toggleTheme();
+              restart();
+            }}
+          >
+            {theme === 'day' ? '🌙' : '☀️'}
           </button>
           <button className="iconbtn" data-testid="btn-quit" title="в меню" onClick={isCampaign ? openCampaign : toMenu}>
             ✕

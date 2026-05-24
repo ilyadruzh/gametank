@@ -50,6 +50,16 @@ describe('UI: титульный экран', () => {
     expect(screen.getByTestId('screen-build')).toBeInTheDocument();
     expect(screen.getByTestId('pl-badge')).toHaveTextContent('ИГРОК 1');
   });
+
+  it('переключатель ночного режима меняет data-theme', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    expect(screen.getByTestId('app')).toHaveAttribute('data-theme', 'day');
+    await user.click(screen.getByTestId('btn-theme'));
+    expect(screen.getByTestId('app')).toHaveAttribute('data-theme', 'night');
+    await user.click(screen.getByTestId('btn-theme'));
+    expect(screen.getByTestId('app')).toHaveAttribute('data-theme', 'day');
+  });
 });
 
 describe('UI: конструктор', () => {
