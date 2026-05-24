@@ -10,8 +10,8 @@ import type { CannonKind, Difficulty, PlayerConfig, TankStats, Theme } from './t
 import type { ObjectiveKind } from './missions';
 import type { PhysicsModule } from '../wasm/loader';
 
-export const ARENA_W = 960;
-export const ARENA_H = 600;
+export const ARENA_W = 1280;
+export const ARENA_H = 800;
 
 export type BattleMode = 'versus' | 'bot' | 'campaign';
 
@@ -19,6 +19,8 @@ export interface BattleObjective {
   kind: ObjectiveKind;
   duration?: number; // секунды (для 'survive')
 }
+
+const MINE_DAMAGE = 40;
 
 const DIFF_PARAMS: Record<Difficulty, { tol: number; react: number; fireGate: number; band: [number, number]; orbit: number }> = {
   easy: { tol: 0.3, react: 0.45, fireGate: 0.6, band: [120, 210], orbit: 0.2 },
@@ -86,6 +88,18 @@ interface Obstacle {
   y: number;
   r: number;
   type: 'box' | 'rock';
+  destructible: boolean;
+  hp: number;
+  maxHp: number;
+  sprite: HTMLCanvasElement;
+}
+
+interface Mine {
+  x: number;
+  y: number;
+  r: number;
+  triggerR: number;
+  armed: boolean;
 }
 
 export interface BattleCallbacks {
@@ -122,7 +136,9 @@ export class BattleEngine {
   private bullets: Bullet[] = [];
   private parts: Particle[] = [];
   private obstacles: Obstacle[] = [];
+  private mines: Mine[] = [];
   private bg: HTMLCanvasElement;
+  private renderEnabled = true;
 
   private canvas: HTMLCanvasElement;
   private keys: Record<string, boolean> = {};
@@ -162,12 +178,68 @@ export class BattleEngine {
     this.bg = document.createElement('canvas');
 
     this.spawnObstacles();
+    this.spawnMines();
     this.makeBackground();
     this.tanks = configs.map((cfg, i) => this.makeTank(cfg, i));
   }
 
+  setRenderEnabled(on: boolean): void {
+    this.renderEnabled = on;
+  }
+
+  /** Снимок состояния для внешнего рендера (3D-режим). Только числа. */
+  snapshot() {
+    return {
+      over: this.over,
+      tanks: this.tanks.map((t) => ({ i: t.i, x: t.x, y: t.y, angle: t.angle, hp: t.hp, maxHp: t.maxHp, flash: t.flash })),
+      bullets: this.bullets.map((b) => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, size: b.size, kind: b.kind })),
+      obstacles: this.obstacles.map((o) => ({ x: o.x, y: o.y, r: o.r, type: o.type, hp: o.hp, maxHp: o.maxHp })),
+      mines: this.mines.map((m) => ({ x: m.x, y: m.y, r: m.r, armed: m.armed })),
+      particles: this.parts.map((p) => ({ x: p.x, y: p.y, size: p.size, color: p.color, life: p.life })),
+    };
+  }
+
   private aiControlled(t: Tank): boolean {
     return (this.mode === 'bot' || this.mode === 'campaign') && t.i === 1;
+  }
+
+  private obstacleSprite(type: 'box' | 'rock', r: number, damage: number): HTMLCanvasElement {
+    const pad = 8;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = Math.ceil(r * 2 + pad * 2);
+    const c = cv.getContext('2d')!;
+    const cx = cv.width / 2;
+    const cy = cv.height / 2;
+    if (type === 'box') {
+      sketchRect(c, cx - r, cy - r, r * 2, r * 2, { fill: '#cdb37e', color: '#27241d', w: 2.4, r: 4 });
+      sketchLine(c, cx - r, cy - r, cx + r, cy + r, { color: '#8a7444', w: 1.6, passes: 1 });
+      sketchLine(c, cx + r, cy - r, cx - r, cy + r, { color: '#8a7444', w: 1.6, passes: 1 });
+    } else {
+      sketchCircle(c, cx, cy, r, { fill: '#b9b2a3', color: '#27241d', w: 2.4 });
+      sketchLine(c, cx - r * 0.4, cy - r * 0.2, cx + r * 0.3, cy + r * 0.3, { color: '#7d776b', w: 1.4, passes: 1 });
+    }
+    // трещины при повреждении
+    if (damage >= 1) {
+      sketchLine(c, cx - r * 0.5, cy - r * 0.6, cx + r * 0.1, cy + r * 0.2, { color: '#5a4a2a', w: 1.6, passes: 1 });
+    }
+    if (damage >= 2) {
+      sketchLine(c, cx + r * 0.4, cy - r * 0.4, cx - r * 0.2, cy + r * 0.6, { color: '#5a4a2a', w: 1.6, passes: 1 });
+    }
+    return cv;
+  }
+
+  private spawnMines(): void {
+    const W = ARENA_W;
+    const H = ARENA_H;
+    const spots: [number, number][] = [
+      [W * 0.4, H * 0.22],
+      [W * 0.6, H * 0.78],
+      [W * 0.22, H * 0.55],
+      [W * 0.78, H * 0.45],
+      [W * 0.5, H * 0.66],
+      [W * 0.5, H * 0.34],
+    ];
+    this.mines = spots.map(([x, y]) => ({ x, y, r: 9, triggerR: 26, armed: true }));
   }
 
   private makeTank(cfg: PlayerConfig, i: number): Tank {
@@ -226,8 +298,25 @@ export class BattleEngine {
       [W * 0.72, H * 0.3, 'box'],
       [W * 0.5, H * 0.16, 'rock'],
       [W * 0.5, H * 0.84, 'rock'],
+      [W * 0.4, H * 0.4, 'box'],
+      [W * 0.6, H * 0.6, 'box'],
+      [W * 0.16, H * 0.5, 'box'],
+      [W * 0.84, H * 0.5, 'box'],
     ];
-    this.obstacles = spots.map((s) => ({ x: s[0], y: s[1], r: s[2] === 'box' ? 26 : 24, type: s[2] }));
+    this.obstacles = spots.map((s) => {
+      const destructible = s[2] === 'box';
+      const r = destructible ? 28 : 26;
+      return {
+        x: s[0],
+        y: s[1],
+        r,
+        type: s[2],
+        destructible,
+        hp: destructible ? 30 : 0,
+        maxHp: destructible ? 30 : 0,
+        sprite: this.obstacleSprite(s[2], r, 0),
+      };
+    });
   }
 
   private makeBackground(): void {
@@ -252,26 +341,13 @@ export class BattleEngine {
     if (night) {
       // редкие «звёзды»
       c.fillStyle = 'rgba(220,230,255,.5)';
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 90; i++) {
         c.beginPath();
         c.arc(Math.random() * W, Math.random() * H, Math.random() * 1.2 + 0.3, 0, 7);
         c.fill();
       }
     }
-    this.obstacles.forEach((o) => {
-      if (o.type === 'box') {
-        sketchRect(c, o.x - o.r, o.y - o.r, o.r * 2, o.r * 2, { fill: '#cdb37e', color: '#27241d', w: 2.4, r: 4 });
-        sketchLine(c, o.x - o.r, o.y - o.r, o.x + o.r, o.y + o.r, { color: '#8a7444', w: 1.6, passes: 1 });
-        sketchLine(c, o.x + o.r, o.y - o.r, o.x - o.r, o.y + o.r, { color: '#8a7444', w: 1.6, passes: 1 });
-      } else {
-        sketchCircle(c, o.x, o.y, o.r, { fill: '#b9b2a3', color: '#27241d', w: 2.4 });
-        sketchLine(c, o.x - o.r * 0.4, o.y - o.r * 0.2, o.x + o.r * 0.3, o.y + o.r * 0.3, {
-          color: '#7d776b',
-          w: 1.4,
-          passes: 1,
-        });
-      }
-    });
+    // препятствия рисуются в render() (могут разрушаться), не в статичном фоне
   }
 
   start(): void {
@@ -353,7 +429,7 @@ export class BattleEngine {
     const dt = Math.min(2.4, (now - this.last) / 16.67);
     this.last = now;
     if (!this.over) this.update(dt, now);
-    this.render();
+    if (this.renderEnabled) this.render();
     this.rafId = requestAnimationFrame(this.loop);
   };
 
@@ -482,6 +558,28 @@ export class BattleEngine {
       }
     }
 
+    // мины-ловушки: взрываются под любым проехавшим танком
+    for (let mi = this.mines.length - 1; mi >= 0; mi--) {
+      const m = this.mines[mi];
+      const victim = this.tanks.find((t) => t.hp > 0 && mineTriggered(m, t.x, t.y, t.st.radius));
+      if (victim) {
+        victim.hp -= MINE_DAMAGE;
+        const dx = victim.x - m.x;
+        const dy = victim.y - m.y;
+        const d = Math.hypot(dx, dy) || 1;
+        victim.x += (dx / d) * 14;
+        victim.y += (dy / d) * 14;
+        victim.spd *= 0.4;
+        this.sparks(m.x, m.y, '#e8541e', 18);
+        sBoom();
+        this.mines.splice(mi, 1);
+        if (victim.hp <= 0) {
+          victim.hp = 0;
+          this.explode(victim);
+        }
+      }
+    }
+
     // пули
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const bl = this.bullets[i];
@@ -524,8 +622,21 @@ export class BattleEngine {
       }
 
       let dead = false;
-      for (const o of this.obstacles) {
+      for (let oi = 0; oi < this.obstacles.length; oi++) {
+        const o = this.obstacles[oi];
         if (ex.circleHit(bl.x, bl.y, o.x, o.y, o.r + bl.size)) {
+          // урон по разрушаемым ящикам
+          if (o.destructible) {
+            o.hp -= bl.dmg;
+            this.sparks(bl.x, bl.y, '#b08a4a', 5);
+            if (o.hp <= 0) {
+              this.crackParticles(o);
+              this.obstacles.splice(oi, 1);
+            } else {
+              const dmgStage = o.hp <= o.maxHp * 0.25 ? 2 : o.hp <= o.maxHp * 0.5 ? 1 : 0;
+              o.sprite = this.obstacleSprite(o.type, o.r, dmgStage);
+            }
+          }
           if (bl.kind === 'chicken' && bl.bounces > 0) {
             const nx = bl.x - o.x;
             const ny = bl.y - o.y;
@@ -542,7 +653,7 @@ export class BattleEngine {
             this.sparks(bl.x, bl.y, '#caa15a', 3);
           } else {
             dead = true;
-            this.sparks(bl.x, bl.y, '#9c8c5a', 5);
+            if (!o.destructible) this.sparks(bl.x, bl.y, '#9c8c5a', 5);
           }
           break;
         }
@@ -610,6 +721,22 @@ export class BattleEngine {
     }
   }
 
+  private crackParticles(o: Obstacle): void {
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * 7;
+      const sp = rnd(1, 5);
+      this.parts.push({
+        x: o.x,
+        y: o.y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: rnd(14, 32),
+        color: i % 2 ? '#cdb37e' : '#8a7444',
+        size: rnd(2, 4.5),
+      });
+    }
+  }
+
   private explode(t: Tank): void {
     this.over = true;
     sBoom();
@@ -634,6 +761,14 @@ export class BattleEngine {
     const ctx = this.ctx;
     const night = this.theme === 'night';
     ctx.drawImage(this.bg, 0, 0);
+
+    // препятствия (разрушаемые ящики и камни)
+    this.obstacles.forEach((o) => {
+      ctx.drawImage(o.sprite, o.x - o.sprite.width / 2, o.y - o.sprite.height / 2);
+    });
+
+    // мины
+    this.mines.forEach((m) => this.drawMine(ctx, m));
 
     this.bullets.forEach((bl) => this.drawBullet(ctx, bl, night));
 
@@ -696,6 +831,37 @@ export class BattleEngine {
       default:
         return this.drawNormalBullet(ctx, bl, night);
     }
+  }
+
+  private drawMine(ctx: CanvasRenderingContext2D, m: Mine): void {
+    ctx.save();
+    // «рожки»
+    ctx.strokeStyle = '#27241d';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(m.x + Math.cos(a) * m.r, m.y + Math.sin(a) * m.r);
+      ctx.lineTo(m.x + Math.cos(a) * (m.r + 4), m.y + Math.sin(a) * (m.r + 4));
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#3a352b';
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r, 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = '#1c1a14';
+    ctx.stroke();
+    // мигающий красный огонёк
+    if (this.last % 700 < 380) {
+      ctx.fillStyle = '#ff3b30';
+      ctx.shadowColor = '#ff3b30';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, 2.6, 0, 7);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
   }
 
   private drawNormalBullet(ctx: CanvasRenderingContext2D, bl: Bullet, night: boolean): void {
@@ -806,6 +972,17 @@ export class BattleEngine {
 export function flagGradient(countryId: string): string {
   const c = COUNTRIES[countryId].cols;
   return `linear-gradient(180deg,${c[0]} 33%,${c[1]} 33% 66%,${c[2]} 66%)`;
+}
+
+/** Сработала ли мина под танком с центром (tx,ty) и радиусом tr. */
+export function mineTriggered(
+  mine: { x: number; y: number; triggerR: number; armed: boolean },
+  tx: number,
+  ty: number,
+  tr: number
+): boolean {
+  if (!mine.armed) return false;
+  return Math.hypot(tx - mine.x, ty - mine.y) < mine.triggerR + tr;
 }
 
 /** Смещения углов для веера из `count` снарядов, симметрично относительно 0,

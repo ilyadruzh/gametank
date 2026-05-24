@@ -448,7 +448,7 @@ h1.logo {
   display: flex;
   justify-content: space-between;
   width: 100%;
-  max-width: 980px;
+  max-width: 1180px;
   gap: 10px;
 }
 .hud .side {
@@ -494,7 +494,7 @@ h1.logo {
 #arena-wrap {
   position: relative;
   width: 100%;
-  max-width: 980px;
+  max-width: 1180px;
 }
 #arena {
   width: 100%;
@@ -508,7 +508,7 @@ h1.logo {
   display: flex;
   justify-content: space-between;
   width: 100%;
-  max-width: 980px;
+  max-width: 1180px;
   font-size: 13px;
   color: var(--ink-soft);
   margin-top: 2px;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { fanAngles } from '../../src/game/engine';
+import { fanAngles, mineTriggered } from '../../src/game/engine';
+import { CANNONS } from '../../src/game/parts';
 
 describe('fanAngles (веер мультивыстрела)', () => {
   it('один снаряд — без смещения', () => {
@@ -21,5 +22,38 @@ describe('fanAngles (веер мультивыстрела)', () => {
 
   it('число снарядов ограничено сверху девятью', () => {
     expect(fanAngles(20, 1)).toHaveLength(9);
+  });
+});
+
+describe('mineTriggered (мины-ловушки)', () => {
+  const mine = { x: 100, y: 100, triggerR: 26, armed: true };
+
+  it('срабатывает, когда танк наехал', () => {
+    expect(mineTriggered(mine, 110, 100, 20)).toBe(true);
+  });
+
+  it('не срабатывает на расстоянии', () => {
+    expect(mineTriggered(mine, 200, 200, 20)).toBe(false);
+  });
+
+  it('обезвреженная мина не срабатывает', () => {
+    expect(mineTriggered({ ...mine, armed: false }, 100, 100, 20)).toBe(false);
+  });
+});
+
+describe('баланс пушек', () => {
+  it('у всех пушек положительные урон и перезарядка', () => {
+    for (const c of Object.values(CANNONS)) {
+      expect(c.dmg).toBeGreaterThan(0);
+      expect(c.reload).toBeGreaterThan(0);
+    }
+  });
+
+  it('эффективный DPS в разумном коридоре (нет доминирующей пушки)', () => {
+    const dps = Object.values(CANNONS).map((c) => (c.dmg / c.reload) * 1000);
+    for (const d of dps) {
+      expect(d).toBeGreaterThanOrEqual(10);
+      expect(d).toBeLessThanOrEqual(45);
+    }
   });
 });

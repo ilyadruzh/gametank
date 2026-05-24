@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../../store/gameStore';
 import { COUNTRIES } from '../../game/parts';
 import { missionById } from '../../game/missions';
-import { BattleEngine, flagGradient, type BattleOptions } from '../../game/engine';
+import { ARENA_H, ARENA_W, BattleEngine, flagGradient, type BattleOptions } from '../../game/engine';
 import { getPhysics } from '../../wasm/loader';
 
 export default function BattleScreen() {
@@ -130,8 +130,8 @@ export default function BattleScreen() {
           id="arena"
           className={anyMouse ? 'mouse-aim' : undefined}
           ref={canvasRef}
-          width={960}
-          height={600}
+          width={ARENA_W}
+          height={ARENA_H}
           data-testid="arena"
         />
 

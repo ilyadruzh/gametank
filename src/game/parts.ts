@@ -23,13 +23,13 @@ export const TURRETS: Record<string, TurretPart> = {
 };
 
 export const CANNONS: Record<string, CannonPart> = {
-  mg: { name: 'Пулемёт', desc: 'Слабо, но очень часто', kind: 'normal', dmg: 4, reload: 120, bspeed: 9, blen: 30, bw: 5, bullet: 3 },
+  mg: { name: 'Пулемёт', desc: 'Слабо, но очень часто', kind: 'normal', dmg: 4, reload: 130, bspeed: 9, blen: 30, bw: 5, bullet: 3 },
   gun: { name: 'Пушка', desc: 'Сбалансированный выстрел', kind: 'normal', dmg: 16, reload: 620, bspeed: 8, blen: 40, bw: 8, bullet: 5 },
-  howitzer: { name: 'Гаубица', desc: 'Бьёт больно, но редко', kind: 'normal', dmg: 34, reload: 1450, bspeed: 6, blen: 30, bw: 13, bullet: 8 },
-  flame: { name: 'Огнемёт', desc: 'Жарит вблизи частыми язычками', kind: 'flame', dmg: 3, reload: 70, bspeed: 6, blen: 26, bw: 11, bullet: 6, blife: 24 },
-  tesla: { name: 'Электропушка', desc: 'Быстрый разряд, бьёт больно', kind: 'electric', dmg: 22, reload: 720, bspeed: 16, blen: 34, bw: 6, bullet: 4 },
-  fart: { name: 'Пукалка', desc: 'Медленное облако, толкает врага', kind: 'fart', dmg: 6, reload: 480, bspeed: 3.4, blen: 22, bw: 13, bullet: 9, blife: 95, push: 16 },
-  chicken: { name: 'Курострел', desc: 'Курицы скачут от стен!', kind: 'chicken', dmg: 18, reload: 820, bspeed: 7, blen: 26, bw: 10, bullet: 7, blife: 220, bounces: 3 },
+  howitzer: { name: 'Гаубица', desc: 'Бьёт больно, но редко', kind: 'normal', dmg: 34, reload: 1400, bspeed: 6, blen: 30, bw: 13, bullet: 8 },
+  flame: { name: 'Огнемёт', desc: 'Жарит вблизи частыми язычками', kind: 'flame', dmg: 3, reload: 95, bspeed: 6, blen: 26, bw: 11, bullet: 6, blife: 26 },
+  tesla: { name: 'Электропушка', desc: 'Быстрый разряд, бьёт больно', kind: 'electric', dmg: 20, reload: 780, bspeed: 16, blen: 34, bw: 6, bullet: 4 },
+  fart: { name: 'Пукалка', desc: 'Медленное облако, толкает врага', kind: 'fart', dmg: 7, reload: 460, bspeed: 3.4, blen: 22, bw: 13, bullet: 9, blife: 95, push: 16 },
+  chicken: { name: 'Курострел', desc: 'Курицы скачут от стен!', kind: 'chicken', dmg: 16, reload: 780, bspeed: 7, blen: 26, bw: 10, bullet: 7, blife: 220, bounces: 3 },
 };
 
 // "что-то ещё" из ТЗ — корпус, влияет на броню/скорость/габариты.
