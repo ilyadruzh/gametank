@@ -3,6 +3,7 @@ import { useGame } from './store/gameStore';
 import { initPhysics } from './wasm/loader';
 import { setMuted } from './game/audio';
 import TitleScreen from './components/screens/TitleScreen';
+import CampaignScreen from './components/screens/CampaignScreen';
 import BuildScreen from './components/screens/BuildScreen';
 import BattleScreen from './components/screens/BattleScreen';
 
@@ -40,6 +41,7 @@ export default function App() {
         </section>
       )}
       {physReady && screen === 'title' && <TitleScreen />}
+      {physReady && screen === 'campaign' && <CampaignScreen />}
       {physReady && screen === 'build' && <BuildScreen />}
       {physReady && screen === 'battle' && <BattleScreen />}
     </div>

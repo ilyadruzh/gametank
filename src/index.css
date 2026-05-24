@@ -118,8 +118,71 @@ h1.logo {
   cursor: not-allowed;
 }
 
-#screen-build {
+#screen-build,
+#screen-campaign {
   justify-content: flex-start;
+}
+.campaign-wrap {
+  display: flex;
+  gap: 18px;
+  width: 100%;
+  max-width: 1000px;
+  flex: 1;
+  min-height: 0;
+}
+.mission-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.mission-card {
+  flex: 0 0 auto;
+}
+.briefing {
+  width: 360px;
+  flex-shrink: 0;
+  background: #fffdf4;
+  border: 2.5px solid var(--ink);
+  border-radius: 18px 12px 18px 12px;
+  box-shadow: 3px 5px 0 rgba(0, 0, 0, 0.18);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.briefing h3 {
+  font-family: 'Permanent Marker';
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.brief-text {
+  font-family: 'Caveat';
+  font-size: 20px;
+  line-height: 1.15;
+  margin: 0 0 12px;
+}
+.brief-row {
+  font-size: 15px;
+  margin: 5px 0;
+}
+.brief-reward {
+  color: var(--accent);
+  font-weight: 700;
+  margin-top: 10px;
+}
+.briefing .btn {
+  margin-top: auto;
+  align-self: flex-start;
+}
+@media (max-width: 820px) {
+  .campaign-wrap {
+    flex-direction: column;
+  }
+  .briefing {
+    width: 100%;
+  }
 }
 .build-head {
   display: flex;
@@ -233,6 +296,15 @@ h1.logo {
   border: 2px solid var(--ink);
   font-family: 'Permanent Marker';
   font-size: 15px;
+}
+.card.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+  box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.1);
+}
+.card.locked:hover {
+  transform: none;
 }
 .flagchip {
   display: inline-block;
@@ -412,6 +484,21 @@ h1.logo {
   margin: 14px 0;
 }
 
+.survive-timer {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  font-family: 'Permanent Marker';
+  font-size: 20px;
+  color: #fff;
+  background: rgba(192, 57, 43, 0.92);
+  border: 2.5px solid var(--ink);
+  border-radius: 12px;
+  padding: 4px 16px;
+  box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.4);
+}
 .country-perk {
   font-size: 13px;
   color: var(--accent);

@@ -2,6 +2,7 @@ import { CANNONS, COUNTRIES, HULLS, PART_LABELS, TRACKS, TURRETS } from '../game
 import { sClick } from '../game/audio';
 import { useGame } from '../store/gameStore';
 import type { PartCategory } from '../game/types';
+import type { UnlockSet } from '../game/campaign';
 
 type CatKey = PartCategory | 'country';
 
@@ -19,9 +20,12 @@ const CATS: CatDef[] = [
   { key: 'hull', data: HULLS },
 ];
 
-export default function PartPicker({ index }: { index: 0 | 1 }) {
+export default function PartPicker({ index, unlocked }: { index: 0 | 1; unlocked?: UnlockSet }) {
   const cfg = useGame((s) => s.players[index]);
   const setPart = useGame((s) => s.setPart);
+
+  const isLocked = (cat: CatKey, id: string): boolean =>
+    !!unlocked && cat !== 'country' && !unlocked[cat].has(id);
 
   return (
     <div className="build-options" id="options" data-testid="options">
@@ -31,22 +35,27 @@ export default function PartPicker({ index }: { index: 0 | 1 }) {
           <div className="cards">
             {Object.entries(cat.data).map(([id, opt]) => {
               const selected = cfg[cat.key] === id;
+              const locked = isLocked(cat.key, id);
+              const choose = () => {
+                if (locked) return;
+                setPart(index, cat.key, id);
+                sClick();
+              };
               return (
                 <div
                   key={id}
-                  className={`card${selected ? ' selected' : ''}`}
+                  className={`card${selected ? ' selected' : ''}${locked ? ' locked' : ''}`}
                   data-testid={`card-${cat.key}-${id}`}
                   data-selected={selected}
+                  data-locked={locked}
                   role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    setPart(index, cat.key, id);
-                    sClick();
-                  }}
+                  aria-disabled={locked}
+                  tabIndex={locked ? -1 : 0}
+                  onClick={choose}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setPart(index, cat.key, id);
+                      choose();
                     }
                   }}
                 >
@@ -59,12 +68,13 @@ export default function PartPicker({ index }: { index: 0 | 1 }) {
                         }}
                       />
                     )}
+                    {locked && '🔒 '}
                     {opt.name}
                   </div>
                   {cat.isCountry ? (
                     <div className="country-perk">{opt.perk}</div>
                   ) : (
-                    <div className="desc">{opt.desc}</div>
+                    <div className="desc">{locked ? 'Открой в кампании' : opt.desc}</div>
                   )}
                 </div>
               );

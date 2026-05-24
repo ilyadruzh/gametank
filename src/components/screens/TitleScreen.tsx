@@ -4,11 +4,17 @@ import { initAudio } from '../../game/audio';
 
 export default function TitleScreen() {
   const startBuild = useGame((s) => s.startBuild);
+  const openCampaign = useGame((s) => s.openCampaign);
   const [showHow, setShowHow] = useState(false);
 
   const start = (mode: 'versus' | 'bot') => {
     initAudio();
     startBuild(mode);
+  };
+
+  const campaign = () => {
+    initAudio();
+    openCampaign();
   };
 
   return (
@@ -18,12 +24,17 @@ export default function TitleScreen() {
       </h1>
       <div className="subtitle">собери свой танк из частей и сразись!</div>
       <div className="mode-row">
-        <button className="btn primary" data-testid="btn-start-versus" onClick={() => start('versus')}>
+        <button className="btn primary" data-testid="btn-start-campaign" onClick={campaign}>
+          КАМПАНИЯ 🎖️
+        </button>
+        <button className="btn" data-testid="btn-start-versus" onClick={() => start('versus')}>
           2 ИГРОКА ⚔️
         </button>
         <button className="btn" data-testid="btn-start-bot" onClick={() => start('bot')}>
           ПРОТИВ БОТА 🤖
         </button>
+      </div>
+      <div className="mode-row" style={{ marginTop: 8 }}>
         <button className="btn ghost" data-testid="btn-how" onClick={() => setShowHow((v) => !v)}>
           Как играть?
         </button>

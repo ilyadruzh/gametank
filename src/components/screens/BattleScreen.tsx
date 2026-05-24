@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../../store/gameStore';
 import { COUNTRIES } from '../../game/parts';
-import { BattleEngine, flagGradient } from '../../game/engine';
+import { missionById } from '../../game/missions';
+import { BattleEngine, flagGradient, type BattleOptions } from '../../game/engine';
 import { getPhysics } from '../../wasm/loader';
 
 export default function BattleScreen() {
@@ -9,10 +10,13 @@ export default function BattleScreen() {
   const mode = useGame((s) => s.mode);
   const muted = useGame((s) => s.muted);
   const result = useGame((s) => s.result);
+  const currentMissionId = useGame((s) => s.currentMissionId);
   const setResult = useGame((s) => s.setResult);
+  const completeMission = useGame((s) => s.completeMission);
   const rematch = useGame((s) => s.rematch);
   const rebuild = useGame((s) => s.rebuild);
   const toMenu = useGame((s) => s.toMenu);
+  const openCampaign = useGame((s) => s.openCampaign);
   const toggleMute = useGame((s) => s.toggleMute);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -20,6 +24,10 @@ export default function BattleScreen() {
   const hp2Ref = useRef<HTMLElement>(null);
   const [roundKey, setRoundKey] = useState(0);
   const [noPhys, setNoPhys] = useState(false);
+  const [timerLeft, setTimerLeft] = useState<number | null>(null);
+
+  const isCampaign = mode === 'campaign';
+  const mission = isCampaign && currentMissionId ? missionById(currentMissionId) : null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,13 +36,29 @@ export default function BattleScreen() {
       setNoPhys(!phys);
       return;
     }
-    const engine = new BattleEngine(canvas, players, mode, phys, {
-      onHp: (hp1, hp2) => {
-        if (hp1Ref.current) hp1Ref.current.style.width = `${hp1}%`;
-        if (hp2Ref.current) hp2Ref.current.style.width = `${hp2}%`;
+    const opts: BattleOptions = {};
+    if (mission) {
+      opts.difficulty = mission.difficulty;
+      opts.objective = { kind: mission.objective.kind, duration: mission.objective.duration };
+    }
+    const engine = new BattleEngine(
+      canvas,
+      players,
+      mode,
+      phys,
+      {
+        onHp: (hp1, hp2) => {
+          if (hp1Ref.current) hp1Ref.current.style.width = `${hp1}%`;
+          if (hp2Ref.current) hp2Ref.current.style.width = `${hp2}%`;
+        },
+        onWin: (winner) => {
+          if (isCampaign && winner === 0 && currentMissionId) completeMission(currentMissionId);
+          setResult(winner);
+        },
+        onTimer: (secs) => setTimerLeft(secs),
       },
-      onWin: (winner) => setResult(winner),
-    });
+      opts
+    );
     engine.start();
     return () => engine.destroy();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -42,6 +66,14 @@ export default function BattleScreen() {
 
   const c1 = COUNTRIES[players[0].country];
   const c2 = COUNTRIES[players[1].country];
+  const aiEnemy = mode === 'bot' || isCampaign;
+  const playerWon = result ? result.winner === 0 : false;
+
+  const restart = () => {
+    rematch();
+    setTimerLeft(null);
+    setRoundKey((k) => k + 1);
+  };
 
   return (
     <section id="screen-battle" className="screen" data-testid="screen-battle">
@@ -59,14 +91,17 @@ export default function BattleScreen() {
           <button className="iconbtn" data-testid="btn-mute" title="звук" onClick={toggleMute}>
             {muted ? '🔇' : '🔊'}
           </button>
-          <button className="iconbtn" data-testid="btn-quit" title="в меню" onClick={toMenu}>
+          <button className="iconbtn" data-testid="btn-quit" title="в меню" onClick={isCampaign ? openCampaign : toMenu}>
             ✕
           </button>
         </div>
         <div className="side s2">
           <div className="nm">
             <span className="flagchip" style={{ background: flagGradient(players[1].country) }} />
-            <span data-testid="hud2-name">{mode === 'bot' ? `${c2.name} 🤖` : c2.name}</span>
+            <span data-testid="hud2-name">
+              {c2.name}
+              {aiEnemy ? ' 🤖' : ''}
+            </span>
           </div>
           <div className="hp">
             <i ref={hp2Ref} data-testid="hp2" style={{ width: '100%' }} />
@@ -76,6 +111,13 @@ export default function BattleScreen() {
 
       <div id="arena-wrap">
         <canvas id="arena" ref={canvasRef} width={960} height={600} data-testid="arena" />
+
+        {mission?.objective.kind === 'survive' && timerLeft !== null && !result && (
+          <div className="survive-timer" data-testid="survive-timer">
+            ⏱ Продержись: {timerLeft}с
+          </div>
+        )}
+
         {noPhys && (
           <div className="overlay show" data-testid="overlay-error">
             <h2>Физика не загрузилась 😢</h2>
@@ -84,19 +126,44 @@ export default function BattleScreen() {
             </button>
           </div>
         )}
-        {result && (
+
+        {result && isCampaign && (
+          <div className="overlay" data-testid="overlay-win">
+            <h2 data-testid="overlay-title">{playerWon ? 'МИССИЯ ПРОЙДЕНА! 🎖️' : 'МИССИЯ ПРОВАЛЕНА 💥'}</h2>
+            {playerWon && mission && <div className="winflag" style={{ width: 'auto', height: 'auto', border: 'none', color: '#fff', fontFamily: 'Caveat', fontSize: 24 }}>🏆 {mission.reward}</div>}
+            <div>
+              {playerWon ? (
+                <>
+                  <button className="btn primary" data-testid="btn-to-map" onClick={openCampaign}>
+                    На карту →
+                  </button>
+                  <button className="btn" data-testid="btn-rematch" onClick={restart}>
+                    Реванш 🔁
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn primary" data-testid="btn-rematch" onClick={restart}>
+                    Ещё раз 🔁
+                  </button>
+                  <button className="btn" data-testid="btn-rebuild" onClick={rebuild}>
+                    Новый танк 🔧
+                  </button>
+                  <button className="btn ghost" data-testid="btn-to-map" onClick={openCampaign}>
+                    На карту
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {result && !isCampaign && (
           <div className="overlay" data-testid="overlay-win">
             <h2 data-testid="overlay-title">ПОБЕДА — {COUNTRIES[players[result.winner].country].name}!</h2>
             <div className="winflag" style={{ background: flagGradient(players[result.winner].country) }} />
             <div>
-              <button
-                className="btn primary"
-                data-testid="btn-rematch"
-                onClick={() => {
-                  rematch();
-                  setRoundKey((k) => k + 1);
-                }}
-              >
+              <button className="btn primary" data-testid="btn-rematch" onClick={restart}>
                 Реванш 🔁
               </button>
               <button className="btn" data-testid="btn-rebuild" onClick={rebuild}>
@@ -120,7 +187,7 @@ export default function BattleScreen() {
           </span>
         ) : (
           <span style={{ color: 'var(--p2)' }}>
-            <b>Бот</b> сражается сам 🤖
+            <b>Противник</b> управляется ИИ 🤖
           </span>
         )}
       </div>

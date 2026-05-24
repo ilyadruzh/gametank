@@ -11,6 +11,7 @@ vi.mock('../../src/components/TankPreview3D', () => ({
 }));
 
 function resetStore() {
+  localStorage.clear();
   useGame.setState({
     screen: 'title',
     mode: 'versus',
@@ -18,6 +19,8 @@ function resetStore() {
     buildIndex: 0,
     muted: false,
     result: null,
+    completed: [],
+    currentMissionId: null,
   });
 }
 
@@ -135,5 +138,49 @@ describe('UI: бой и исход', () => {
     expect(screen.getByTestId('overlay-title')).toHaveTextContent('ПОБЕДА');
     await user.click(screen.getByTestId('btn-rebuild'));
     expect(screen.getByTestId('screen-build')).toBeInTheDocument();
+  });
+});
+
+describe('UI: кампания', () => {
+  beforeEach(resetStore);
+
+  it('кнопка КАМПАНИЯ открывает карту, вторая миссия заблокирована', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByTestId('btn-start-campaign'));
+    expect(screen.getByTestId('screen-campaign')).toBeInTheDocument();
+    expect(screen.getByTestId('mission-m1-patrol')).toHaveAttribute('data-locked', 'false');
+    expect(screen.getByTestId('mission-m2-hold')).toHaveAttribute('data-locked', 'true');
+  });
+
+  it('выбор миссии -> брифинг -> сборка с заблокированными деталями -> бой', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByTestId('btn-start-campaign'));
+    await user.click(screen.getByTestId('mission-m1-patrol'));
+    expect(screen.getByTestId('briefing-title')).toHaveTextContent('Первый выезд');
+    await user.click(screen.getByTestId('btn-begin-mission'));
+    expect(screen.getByTestId('screen-build')).toBeInTheDocument();
+    // гаубица ещё не открыта в кампании
+    expect(screen.getByTestId('card-cannon-howitzer')).toHaveAttribute('data-locked', 'true');
+    await user.click(screen.getByTestId('btn-next'));
+    expect(screen.getByTestId('screen-battle')).toBeInTheDocument();
+  });
+
+  it('победа в миссии засчитывает её прохождение и показывает награду', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByTestId('btn-start-campaign'));
+    await user.click(screen.getByTestId('mission-m1-patrol'));
+    await user.click(screen.getByTestId('btn-begin-mission'));
+    await user.click(screen.getByTestId('btn-next'));
+    // движок в jsdom не запускается -> эмулируем победу игрока через store
+    useGame.getState().completeMission('m1-patrol');
+    useGame.getState().setResult(0);
+    await waitFor(() => expect(screen.getByTestId('overlay-title')).toHaveTextContent('МИССИЯ ПРОЙДЕНА'));
+    expect(useGame.getState().completed).toContain('m1-patrol');
+    await user.click(screen.getByTestId('btn-to-map'));
+    expect(screen.getByTestId('screen-campaign')).toBeInTheDocument();
+    expect(screen.getByTestId('mission-m2-hold')).toHaveAttribute('data-locked', 'false');
   });
 });

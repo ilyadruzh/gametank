@@ -6,13 +6,25 @@ import { COUNTRIES } from './parts';
 import { rnd, sketchCircle, sketchLine, sketchRect } from './sketch';
 import { buildSprite, type TankSprite } from './sprite';
 import { computeStats } from './stats';
-import type { PlayerConfig, TankStats } from './types';
+import type { Difficulty, PlayerConfig, TankStats } from './types';
+import type { ObjectiveKind } from './missions';
 import type { PhysicsModule } from '../wasm/loader';
 
 export const ARENA_W = 960;
 export const ARENA_H = 600;
 
-export type BattleMode = 'versus' | 'bot';
+export type BattleMode = 'versus' | 'bot' | 'campaign';
+
+export interface BattleObjective {
+  kind: ObjectiveKind;
+  duration?: number; // секунды (для 'survive')
+}
+
+const DIFF_PARAMS: Record<Difficulty, { tol: number; react: number; fireGate: number; band: [number, number]; orbit: number }> = {
+  easy: { tol: 0.3, react: 0.45, fireGate: 0.6, band: [120, 210], orbit: 0.2 },
+  normal: { tol: 0.18, react: 0.75, fireGate: 0.85, band: [150, 250], orbit: 0.55 },
+  hard: { tol: 0.11, react: 1.0, fireGate: 1.0, band: [180, 300], orbit: 0.85 },
+};
 
 interface Controls {
   fwd: string;
@@ -37,6 +49,10 @@ interface Tank {
   lastShot: number;
   ctrl: Controls;
   flash: number;
+  // состояние ИИ
+  botStrafe: number;
+  botStrafeUntil: number;
+  botAimErr: number;
 }
 
 interface Bullet {
@@ -70,6 +86,12 @@ interface Obstacle {
 export interface BattleCallbacks {
   onHp: (hp1: number, hp2: number) => void;
   onWin: (winnerIndex: number) => void;
+  onTimer?: (secondsLeft: number) => void;
+}
+
+export interface BattleOptions {
+  difficulty?: Difficulty;
+  objective?: BattleObjective;
 }
 
 const P1_CONTROLS: Controls = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', fire: 'Space', ring: '#2f6fb0' };
@@ -102,12 +124,18 @@ export class BattleEngine {
   private rafId = 0;
   private winTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  private difficulty: Difficulty;
+  private objective?: BattleObjective;
+  private startTime = 0;
+  private lastTimerShown = -1;
+
   constructor(
     canvas: HTMLCanvasElement,
     configs: [PlayerConfig, PlayerConfig],
     mode: BattleMode,
     phys: PhysicsModule,
-    cb: BattleCallbacks
+    cb: BattleCallbacks,
+    opts: BattleOptions = {}
   ) {
     canvas.width = ARENA_W;
     canvas.height = ARENA_H;
@@ -116,11 +144,17 @@ export class BattleEngine {
     this.scratch = phys.scratch;
     this.mode = mode;
     this.cb = cb;
+    this.difficulty = opts.difficulty ?? 'normal';
+    this.objective = opts.objective;
     this.bg = document.createElement('canvas');
 
     this.spawnObstacles();
     this.makeBackground();
     this.tanks = configs.map((cfg, i) => this.makeTank(cfg, i));
+  }
+
+  private aiControlled(t: Tank): boolean {
+    return (this.mode === 'bot' || this.mode === 'campaign') && t.i === 1;
   }
 
   private makeTank(cfg: PlayerConfig, i: number): Tank {
@@ -140,6 +174,9 @@ export class BattleEngine {
       lastShot: 0,
       ctrl: i === 0 ? P1_CONTROLS : P2_CONTROLS,
       flash: 0,
+      botStrafe: Math.random() < 0.5 ? 1 : -1,
+      botStrafeUntil: 0,
+      botAimErr: 0,
     };
   }
 
@@ -200,6 +237,11 @@ export class BattleEngine {
     window.addEventListener('keyup', this.onKeyUp);
     this.cb.onHp(this.hpRatio(0), this.hpRatio(1));
     this.last = performance.now();
+    this.startTime = this.last;
+    if (this.objective?.kind === 'survive' && this.objective.duration) {
+      this.cb.onTimer?.(this.objective.duration);
+      this.lastTimerShown = this.objective.duration;
+    }
     this.rafId = requestAnimationFrame(this.loop);
   }
 
@@ -236,18 +278,43 @@ export class BattleEngine {
     this.rafId = requestAnimationFrame(this.loop);
   };
 
-  // Ввод бота для танка #2: едет к врагу и стреляет, когда наведён.
-  private botInput(bot: Tank, target: Tank): { move: number; turn: number; fire: boolean } {
+  // Ввод бота: наводится с поправкой на сложность, держит дистанцию под свою
+  // пушку и «орбитит» вокруг цели, чтобы сложнее было попасть.
+  private botInput(bot: Tank, target: Tank, now: number, dt: number): { move: number; turn: number; fire: boolean } {
+    const p = DIFF_PARAMS[this.difficulty];
     const dx = target.x - bot.x;
     const dy = target.y - bot.y;
+    const dist = Math.hypot(dx, dy);
     const desired = Math.atan2(dy, dx);
-    let diff = desired - bot.angle;
+
+    // ошибка прицела: периодически подмешиваем промах, который затухает
+    if (now > bot.botStrafeUntil) {
+      bot.botStrafe = Math.random() < 0.5 ? 1 : -1;
+      bot.botStrafeUntil = now + 700 + Math.random() * 900;
+      bot.botAimErr = (Math.random() - 0.5) * (1 - p.react) * 0.8;
+    }
+    bot.botAimErr *= Math.max(0, 1 - 0.05 * dt);
+
+    let diff = desired - bot.angle + bot.botAimErr;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    const turn = Math.abs(diff) < 0.05 ? 0 : diff > 0 ? 1 : -1;
-    const dist = Math.hypot(dx, dy);
-    const move = dist > 220 ? 1 : dist < 130 ? -1 : 0;
-    const fire = Math.abs(diff) < 0.16;
+
+    let turn = Math.abs(diff) < p.tol ? 0 : diff > 0 ? 1 : -1;
+
+    let move: number;
+    if (dist > p.band[1]) move = 1;
+    else if (dist < p.band[0]) move = -1;
+    else {
+      // в зоне боя — кружим вокруг цели
+      if (Math.random() < p.orbit) {
+        move = 1;
+        if (turn === 0) turn = bot.botStrafe; // довернуть для дуги облёта
+      } else {
+        move = 0;
+      }
+    }
+
+    const fire = Math.abs(diff) < p.tol && Math.random() < p.fireGate;
     return { move, turn, fire };
   }
 
@@ -260,8 +327,8 @@ export class BattleEngine {
       let turn: number;
       let firing: boolean;
 
-      if (this.mode === 'bot' && t.i === 1) {
-        const bi = this.botInput(t, this.tanks[0]);
+      if (this.aiControlled(t)) {
+        const bi = this.botInput(t, this.tanks[0], now, dt);
         move = bi.move;
         turn = bi.turn;
         firing = bi.fire;
@@ -370,6 +437,20 @@ export class BattleEngine {
       p.vy *= 0.94;
       p.life -= dt;
       if (p.life <= 0) this.parts.splice(i, 1);
+    }
+
+    // цель «продержаться»: обратный отсчёт, по нулю — победа игрока
+    if (!this.over && this.objective?.kind === 'survive' && this.objective.duration) {
+      const left = Math.max(0, this.objective.duration - (now - this.startTime) / 1000);
+      const shown = Math.ceil(left);
+      if (shown !== this.lastTimerShown) {
+        this.lastTimerShown = shown;
+        this.cb.onTimer?.(shown);
+      }
+      if (left <= 0) {
+        this.over = true;
+        this.winTimeout = setTimeout(() => this.cb.onWin(0), 300);
+      }
     }
 
     this.cb.onHp(this.hpRatio(0), this.hpRatio(1));

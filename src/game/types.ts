@@ -3,6 +3,7 @@
 export type PartCategory = 'tracks' | 'turret' | 'cannon' | 'hull';
 export type CountryId = string;
 export type PartId = string;
+export type Difficulty = 'easy' | 'normal' | 'hard';
 
 export interface TrackPart {
   name: string;
