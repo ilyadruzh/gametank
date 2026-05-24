@@ -46,6 +46,10 @@ export function computeStats(cfg: PlayerConfig): TankStats {
     blen: cn.blen,
     bw: cn.bw,
     bsize: cn.bullet,
+    cannonKind: cn.kind,
+    blife: cn.blife ?? 140,
+    bounces: cn.bounces ?? 0,
+    push: cn.push ?? 0,
     len: t.len * hu.sizeMul,
     wid: t.wid * hu.sizeMul,
     thick: t.thick,
@@ -54,6 +58,7 @@ export function computeStats(cfg: PlayerConfig): TankStats {
     radius,
     color: co.cols[0],
     color2: co.cols[1],
+    faceId: cfg.faceId,
   };
 }
 

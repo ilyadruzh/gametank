@@ -5,6 +5,8 @@ export type CountryId = string;
 export type PartId = string;
 export type Difficulty = 'easy' | 'normal' | 'hard';
 export type Theme = 'day' | 'night';
+export type CannonKind = 'normal' | 'flame' | 'electric' | 'fart' | 'chicken';
+export type ControlMode = 'keys' | 'mouse';
 
 export interface TrackPart {
   name: string;
@@ -27,12 +29,16 @@ export interface TurretPart {
 export interface CannonPart {
   name: string;
   desc: string;
+  kind: CannonKind;
   dmg: number;
   reload: number; // мс
   bspeed: number; // скорость снаряда
   blen: number; // длина ствола
   bw: number; // ширина ствола
   bullet: number; // радиус снаряда
+  blife?: number; // время жизни снаряда (тики); по умолчанию 140
+  bounces?: number; // сколько раз отскакивает (курица)
+  push?: number; // отталкивание цели при попадании (пукалка)
 }
 
 export interface HullPart {
@@ -66,6 +72,8 @@ export interface PlayerConfig {
   turret: PartId;
   cannon: PartId;
   hull: PartId;
+  control?: ControlMode; // способ управления (клавиатура/мышь)
+  faceId?: string; // лицо персонажа из гаража
 }
 
 export interface TankStats {
@@ -79,6 +87,10 @@ export interface TankStats {
   blen: number;
   bw: number;
   bsize: number;
+  cannonKind: CannonKind;
+  blife: number;
+  bounces: number;
+  push: number;
   len: number;
   wid: number;
   thick: number;
@@ -87,4 +99,5 @@ export interface TankStats {
   radius: number;
   color: string;
   color2: string;
+  faceId?: string;
 }

@@ -2,11 +2,13 @@ import { lazy, Suspense, useMemo } from 'react';
 import { useGame } from '../../store/gameStore';
 import { CANNONS, COUNTRIES } from '../../game/parts';
 import { computeStats } from '../../game/stats';
-import { computeUnlocked } from '../../game/campaign';
+import { computeUnlocked, sanitizeConfig } from '../../game/campaign';
 import { missionById } from '../../game/missions';
 import { initAudio } from '../../game/audio';
 import PartPicker from '../PartPicker';
 import StatsPanel from '../StatsPanel';
+import GarageGrid from '../GarageGrid';
+import type { ControlMode, PlayerConfig } from '../../game/types';
 
 const TankPreview3D = lazy(() => import('../TankPreview3D'));
 
@@ -18,11 +20,18 @@ export default function BuildScreen() {
   const currentMissionId = useGame((s) => s.currentMissionId);
   const nextBuild = useGame((s) => s.nextBuild);
   const backBuild = useGame((s) => s.backBuild);
+  const setControl = useGame((s) => s.setControl);
+  const pickGarage = useGame((s) => s.pickGarage);
 
   const stats = useMemo(() => computeStats(cfg), [cfg]);
   const isCampaign = mode === 'campaign';
   const unlocked = useMemo(() => (isCampaign ? computeUnlocked(completed) : undefined), [isCampaign, completed]);
   const mission = isCampaign && currentMissionId ? missionById(currentMissionId) : undefined;
+  const control: ControlMode = cfg.control ?? 'keys';
+
+  const onPickGarage = (config: PlayerConfig) => {
+    pickGarage(buildIndex, isCampaign && unlocked ? sanitizeConfig(config, unlocked) : config);
+  };
 
   const isLastStep = mode === 'bot' || isCampaign || buildIndex === 1;
   const nextLabel = isLastStep ? 'В БОЙ! ⚔️' : 'Готово →';
@@ -46,6 +55,27 @@ export default function BuildScreen() {
             <span style={{ fontFamily: 'Caveat', fontSize: 24, fontWeight: 700 }}>собирает свой танк</span>
           </>
         )}
+      </div>
+
+      <div className="garage-row">
+        <span className="garage-label">🚗 Гараж:</span>
+        <GarageGrid index={buildIndex} onPick={onPickGarage} />
+        <span className="control-toggle" data-testid="control-toggle">
+          <button
+            className={`mini-btn${control === 'keys' ? ' on' : ''}`}
+            data-testid="control-keys"
+            onClick={() => setControl(buildIndex, 'keys')}
+          >
+            ⌨️ Клавиши
+          </button>
+          <button
+            className={`mini-btn${control === 'mouse' ? ' on' : ''}`}
+            data-testid="control-mouse"
+            onClick={() => setControl(buildIndex, 'mouse')}
+          >
+            🖱️ Мышь
+          </button>
+        </span>
       </div>
 
       <div className="build-wrap">

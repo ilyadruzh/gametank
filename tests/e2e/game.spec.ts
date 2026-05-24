@@ -146,3 +146,60 @@ test.describe('Режим против бота', () => {
     await expect(page.getByTestId('hud2-name')).toContainText('🤖');
   });
 });
+
+test.describe('Ночной режим', () => {
+  test('переключатель меняет тему всего приложения', async ({ page }) => {
+    await expect(page.getByTestId('app')).toHaveAttribute('data-theme', 'day');
+    await page.getByTestId('btn-theme').click();
+    await expect(page.getByTestId('app')).toHaveAttribute('data-theme', 'night');
+  });
+});
+
+test.describe('Кампания', () => {
+  test('карта -> миссия -> сборка -> бой', async ({ page }) => {
+    await page.getByTestId('btn-start-campaign').click();
+    await expect(page.getByTestId('screen-campaign')).toBeVisible();
+    await expect(page.getByTestId('mission-m2-hold')).toHaveAttribute('data-locked', 'true');
+    await page.getByTestId('mission-m1-patrol').click();
+    await expect(page.getByTestId('briefing-title')).toContainText('Первый выезд');
+    await page.getByTestId('btn-begin-mission').click();
+    await expect(page.getByTestId('card-cannon-howitzer')).toHaveAttribute('data-locked', 'true');
+    await page.getByTestId('btn-next').click();
+    await expect(page.getByTestId('screen-battle')).toBeVisible();
+  });
+});
+
+test.describe('Гараж и спецпушки', () => {
+  test('выбор персонажа из гаража и спецпушки', async ({ page }) => {
+    await page.getByTestId('btn-start-versus').click();
+    await page.getByTestId('garage-drakosha').click();
+    await expect(page.getByTestId('prev-name')).toContainText('Огнемёт');
+    await page.getByTestId('card-cannon-chicken').click();
+    await expect(page.getByTestId('prev-name')).toContainText('Курострел');
+  });
+});
+
+test.describe('Управление мышью', () => {
+  test('выбор мыши включает прицел на арене', async ({ page }) => {
+    await page.getByTestId('btn-start-bot').click();
+    await page.getByTestId('control-mouse').click();
+    await page.getByTestId('btn-next').click();
+    await expect(page.getByTestId('arena')).toHaveClass(/mouse-aim/);
+    // выстрел по клику мыши не должен ломать арену
+    const box = await page.getByTestId('arena').boundingBox();
+    if (box) await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.5);
+    await expect(page.getByTestId('arena')).toBeVisible();
+  });
+});
+
+test.describe('Мультивыстрел', () => {
+  test('цифра задаёт веер, стрельба не падает', async ({ page }) => {
+    await page.getByTestId('btn-start-bot').click();
+    await page.getByTestId('btn-next').click();
+    await page.keyboard.press('Digit5');
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(300);
+    await page.keyboard.up('Space');
+    await expect(page.getByTestId('arena')).toBeVisible();
+  });
+});

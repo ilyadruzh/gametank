@@ -3,7 +3,7 @@ import { defaultConfig } from '../game/parts';
 import { computeUnlocked, loadCompleted, sanitizeConfig, saveCompleted } from '../game/campaign';
 import { loadTheme, saveTheme } from '../game/settings';
 import { missionById } from '../game/missions';
-import type { PartCategory, PlayerConfig, Theme } from '../game/types';
+import type { ControlMode, PartCategory, PlayerConfig, Theme } from '../game/types';
 import type { BattleMode } from '../game/engine';
 
 export type Screen = 'title' | 'campaign' | 'build' | 'battle';
@@ -23,6 +23,8 @@ interface GameState {
 
   startBuild: (mode: BattleMode) => void;
   setPart: (index: 0 | 1, category: PartCategory | 'country', value: string) => void;
+  setControl: (index: 0 | 1, mode: ControlMode) => void;
+  pickGarage: (index: 0 | 1, config: PlayerConfig) => void;
   nextBuild: () => void;
   backBuild: () => void;
   goBattle: () => void;
@@ -59,6 +61,26 @@ export const useGame = create<GameState>((set, get) => ({
     set((s) => {
       const players = [...s.players] as [PlayerConfig, PlayerConfig];
       players[index] = { ...players[index], [category]: value };
+      return { players };
+    }),
+
+  // мышь одна на двоих: при выборе мыши у одного — второму ставим клавиатуру
+  setControl: (index, mode) =>
+    set((s) => {
+      const players = [...s.players] as [PlayerConfig, PlayerConfig];
+      players[index] = { ...players[index], control: mode };
+      if (mode === 'mouse') {
+        const other = (index === 0 ? 1 : 0) as 0 | 1;
+        players[other] = { ...players[other], control: 'keys' };
+      }
+      return { players };
+    }),
+
+  pickGarage: (index, config) =>
+    set((s) => {
+      const players = [...s.players] as [PlayerConfig, PlayerConfig];
+      // сохраняем выбранный способ управления игрока
+      players[index] = { ...config, control: players[index].control ?? 'keys' };
       return { players };
     }),
 

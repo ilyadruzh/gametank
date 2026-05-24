@@ -70,6 +70,9 @@ export default function BattleScreen() {
   const c2 = COUNTRIES[players[1].country];
   const aiEnemy = mode === 'bot' || isCampaign;
   const playerWon = result ? result.winner === 0 : false;
+  const p1Mouse = players[0].control === 'mouse';
+  const p2Mouse = mode === 'versus' && players[1].control === 'mouse';
+  const anyMouse = p1Mouse || p2Mouse;
 
   const restart = () => {
     rematch();
@@ -123,7 +126,14 @@ export default function BattleScreen() {
       </div>
 
       <div id="arena-wrap">
-        <canvas id="arena" ref={canvasRef} width={960} height={600} data-testid="arena" />
+        <canvas
+          id="arena"
+          className={anyMouse ? 'mouse-aim' : undefined}
+          ref={canvasRef}
+          width={960}
+          height={600}
+          data-testid="arena"
+        />
 
         {mission?.objective.kind === 'survive' && timerLeft !== null && !result && (
           <div className="survive-timer" data-testid="survive-timer">
@@ -192,11 +202,13 @@ export default function BattleScreen() {
 
       <div className="ctrl-hint">
         <span style={{ color: 'var(--p1)' }}>
-          <b>Игрок 1:</b> W A S D — ехать/крутить, ПРОБЕЛ — огонь
+          <b>Игрок 1:</b>{' '}
+          {p1Mouse ? 'мышь — ехать к курсору, ЛКМ — огонь' : 'W A S D — ехать, ПРОБЕЛ — огонь, 1–9 — веер'}
         </span>
         {mode === 'versus' ? (
           <span style={{ color: 'var(--p2)' }}>
-            <b>Игрок 2:</b> ← ↑ ↓ → — ехать/крутить, ENTER — огонь
+            <b>Игрок 2:</b>{' '}
+            {p2Mouse ? 'мышь — ехать к курсору, ЛКМ — огонь' : '← ↑ ↓ → — ехать, ENTER — огонь, Num 1–9 — веер'}
           </span>
         ) : (
           <span style={{ color: 'var(--p2)' }}>

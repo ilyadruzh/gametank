@@ -6,7 +6,7 @@ import { COUNTRIES } from './parts';
 import { rnd, sketchCircle, sketchLine, sketchRect } from './sketch';
 import { buildSprite, type TankSprite } from './sprite';
 import { computeStats } from './stats';
-import type { Difficulty, PlayerConfig, TankStats, Theme } from './types';
+import type { CannonKind, Difficulty, PlayerConfig, TankStats, Theme } from './types';
 import type { ObjectiveKind } from './missions';
 import type { PhysicsModule } from '../wasm/loader';
 
@@ -53,6 +53,8 @@ interface Tank {
   botStrafe: number;
   botStrafeUntil: number;
   botAimErr: number;
+  // «стволность» — сколько снарядов веером за выстрел (цифры 1..9)
+  shotCount: number;
 }
 
 interface Bullet {
@@ -64,6 +66,9 @@ interface Bullet {
   dmg: number;
   life: number;
   size: number;
+  kind: CannonKind;
+  bounces: number;
+  push: number;
 }
 
 interface Particle {
@@ -87,6 +92,7 @@ export interface BattleCallbacks {
   onHp: (hp1: number, hp2: number) => void;
   onWin: (winnerIndex: number) => void;
   onTimer?: (secondsLeft: number) => void;
+  onBurst?: (burst1: number, burst2: number) => void;
 }
 
 export interface BattleOptions {
@@ -118,7 +124,10 @@ export class BattleEngine {
   private obstacles: Obstacle[] = [];
   private bg: HTMLCanvasElement;
 
+  private canvas: HTMLCanvasElement;
   private keys: Record<string, boolean> = {};
+  private mouse = { x: ARENA_W / 2, y: ARENA_H / 2 };
+  private mouseDown = false;
   private running = false;
   private over = false;
   private last = 0;
@@ -141,6 +150,7 @@ export class BattleEngine {
   ) {
     canvas.width = ARENA_W;
     canvas.height = ARENA_H;
+    this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
     this.phys = phys;
     this.scratch = phys.scratch;
@@ -180,7 +190,29 @@ export class BattleEngine {
       botStrafe: Math.random() < 0.5 ? 1 : -1,
       botStrafeUntil: 0,
       botAimErr: 0,
+      shotCount: 1,
     };
+  }
+
+  private fireShot(t: Tank): void {
+    const offsets = fanAngles(t.shotCount, 0.14 * (t.shotCount - 1));
+    for (const off of offsets) this.spawnBullet(t, t.angle + off);
+  }
+
+  private spawnBullet(t: Tank, angle: number): void {
+    this.bullets.push({
+      x: t.x + Math.cos(angle) * t.spr.tipDist,
+      y: t.y + Math.sin(angle) * t.spr.tipDist,
+      vx: Math.cos(angle) * t.st.bspeed,
+      vy: Math.sin(angle) * t.st.bspeed,
+      owner: t.i,
+      dmg: t.st.dmg,
+      life: t.st.blife,
+      size: t.st.bsize,
+      kind: t.st.cannonKind,
+      bounces: t.st.bounces,
+      push: t.st.push,
+    });
   }
 
   private spawnObstacles(): void {
@@ -248,6 +280,9 @@ export class BattleEngine {
     this.over = false;
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
+    this.canvas.addEventListener('mousemove', this.onMouseMove);
+    this.canvas.addEventListener('mousedown', this.onMouseDown);
+    window.addEventListener('mouseup', this.onMouseUp);
     this.cb.onHp(this.hpRatio(0), this.hpRatio(1));
     this.last = performance.now();
     this.startTime = this.last;
@@ -264,18 +299,49 @@ export class BattleEngine {
     if (this.winTimeout) clearTimeout(this.winTimeout);
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
+    this.canvas.removeEventListener('mousemove', this.onMouseMove);
+    this.canvas.removeEventListener('mousedown', this.onMouseDown);
+    window.removeEventListener('mouseup', this.onMouseUp);
   }
+
+  private onMouseMove = (e: MouseEvent): void => {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    this.mouse.x = ((e.clientX - rect.left) / rect.width) * ARENA_W;
+    this.mouse.y = ((e.clientY - rect.top) / rect.height) * ARENA_H;
+  };
+
+  private onMouseDown = (e: MouseEvent): void => {
+    if (e.button === 0) {
+      this.mouseDown = true;
+      e.preventDefault();
+    }
+  };
+
+  private onMouseUp = (e: MouseEvent): void => {
+    if (e.button === 0) this.mouseDown = false;
+  };
 
   private onKeyDown = (e: KeyboardEvent): void => {
     this.keys[e.code] = true;
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.code)) {
       e.preventDefault();
     }
+    this.setBurstFromKey(e.code);
   };
 
   private onKeyUp = (e: KeyboardEvent): void => {
     this.keys[e.code] = false;
   };
+
+  // Цифры задают «стволность»: P1 — Digit1..9, P2 — Numpad1..9.
+  private setBurstFromKey(code: string): void {
+    const m1 = /^Digit([1-9])$/.exec(code);
+    if (m1 && this.tanks[0]) this.tanks[0].shotCount = +m1[1];
+    const m2 = /^Numpad([1-9])$/.exec(code);
+    if (m2 && this.tanks[1]) this.tanks[1].shotCount = +m2[1];
+    if (m1 || m2) this.cb.onBurst?.(this.tanks[0].shotCount, this.tanks[1].shotCount);
+  }
 
   private hpRatio(i: number): number {
     const t = this.tanks[i];
@@ -331,6 +397,20 @@ export class BattleEngine {
     return { move, turn, fire };
   }
 
+  // Управление мышью: танк поворачивается к курсору, едет к нему, ЛКМ — огонь.
+  private mouseInput(t: Tank): { move: number; turn: number; fire: boolean } {
+    const dx = this.mouse.x - t.x;
+    const dy = this.mouse.y - t.y;
+    const dist = Math.hypot(dx, dy);
+    const desired = Math.atan2(dy, dx);
+    let diff = desired - t.angle;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    const turn = Math.abs(diff) < 0.04 ? 0 : diff > 0 ? 1 : -1;
+    const move = dist > t.st.radius + 18 ? 1 : 0;
+    return { move, turn, fire: this.mouseDown };
+  }
+
   private update(dt: number, now: number): void {
     const ex = this.phys.exports;
     const s = this.scratch;
@@ -345,6 +425,11 @@ export class BattleEngine {
         move = bi.move;
         turn = bi.turn;
         firing = bi.fire;
+      } else if (t.cfg.control === 'mouse') {
+        const mi = this.mouseInput(t);
+        move = mi.move;
+        turn = mi.turn;
+        firing = mi.fire;
       } else {
         const k = t.ctrl;
         move = (this.keys[k.fwd] ? 1 : 0) - (this.keys[k.back] ? 1 : 0);
@@ -377,18 +462,8 @@ export class BattleEngine {
       if (firing && now - t.lastShot >= t.st.reload) {
         t.lastShot = now;
         t.flash = 6;
-        const a = t.angle;
-        this.bullets.push({
-          x: t.x + Math.cos(a) * t.spr.tipDist,
-          y: t.y + Math.sin(a) * t.spr.tipDist,
-          vx: Math.cos(a) * t.st.bspeed,
-          vy: Math.sin(a) * t.st.bspeed,
-          owner: t.i,
-          dmg: t.st.dmg,
-          life: 140,
-          size: t.st.bsize,
-        });
-        sShoot(t.st.cannon);
+        this.fireShot(t);
+        sShoot(t.st.cannonKind === 'normal' ? t.st.cannon : t.st.cannonKind);
       }
       if (t.flash > 0) t.flash -= dt;
     });
@@ -413,16 +488,66 @@ export class BattleEngine {
       bl.x += bl.vx * dt;
       bl.y += bl.vy * dt;
       bl.life -= dt;
-      let dead = bl.life <= 0 || bl.x < 0 || bl.x > ARENA_W || bl.y < 0 || bl.y > ARENA_H;
-      if (!dead) {
-        for (const o of this.obstacles) {
-          if (ex.circleHit(bl.x, bl.y, o.x, o.y, o.r + bl.size)) {
-            dead = true;
-            this.sparks(bl.x, bl.y, '#9c8c5a', 5);
-            break;
-          }
+
+      // поведение в полёте по типу пушки
+      if (bl.kind === 'fart') bl.size = Math.min(bl.size + 0.18 * dt, 18);
+      else if (bl.kind === 'flame' && Math.random() < 0.6) {
+        this.parts.push({
+          x: bl.x,
+          y: bl.y,
+          vx: rnd(-0.6, 0.6),
+          vy: rnd(-0.6, 0.6),
+          life: rnd(6, 14),
+          color: Math.random() < 0.5 ? '#ffce4a' : '#e8541e',
+          size: rnd(2, 4),
+        });
+      }
+
+      // границы арены: курица отскакивает, остальные гибнут
+      const outX = bl.x < 0 || bl.x > ARENA_W;
+      const outY = bl.y < 0 || bl.y > ARENA_H;
+      if (outX || outY) {
+        if (bl.kind === 'chicken' && bl.bounces > 0) {
+          if (outX) bl.vx = -bl.vx;
+          if (outY) bl.vy = -bl.vy;
+          bl.x = Math.max(0, Math.min(ARENA_W, bl.x));
+          bl.y = Math.max(0, Math.min(ARENA_H, bl.y));
+          bl.bounces--;
+        } else {
+          this.bullets.splice(i, 1);
+          continue;
         }
       }
+      if (bl.life <= 0) {
+        this.bullets.splice(i, 1);
+        continue;
+      }
+
+      let dead = false;
+      for (const o of this.obstacles) {
+        if (ex.circleHit(bl.x, bl.y, o.x, o.y, o.r + bl.size)) {
+          if (bl.kind === 'chicken' && bl.bounces > 0) {
+            const nx = bl.x - o.x;
+            const ny = bl.y - o.y;
+            const d = Math.hypot(nx, ny) || 1;
+            const ux = nx / d;
+            const uy = ny / d;
+            const dot = bl.vx * ux + bl.vy * uy;
+            bl.vx -= 2 * dot * ux;
+            bl.vy -= 2 * dot * uy;
+            const out = o.r + bl.size - d;
+            bl.x += ux * out;
+            bl.y += uy * out;
+            bl.bounces--;
+            this.sparks(bl.x, bl.y, '#caa15a', 3);
+          } else {
+            dead = true;
+            this.sparks(bl.x, bl.y, '#9c8c5a', 5);
+          }
+          break;
+        }
+      }
+
       if (!dead) {
         for (const t of this.tanks) {
           if (t.i !== bl.owner && t.hp > 0 && ex.circleHit(bl.x, bl.y, t.x, t.y, t.st.radius + bl.size)) {
@@ -430,6 +555,14 @@ export class BattleEngine {
             dead = true;
             sHit();
             this.sparks(bl.x, bl.y, t.st.color, 9);
+            if (bl.push > 0) {
+              const dx = t.x - bl.x;
+              const dy = t.y - bl.y;
+              const d = Math.hypot(dx, dy) || 1;
+              t.x += (dx / d) * bl.push;
+              t.y += (dy / d) * bl.push;
+              t.spd *= 0.5;
+            }
             if (t.hp <= 0) {
               t.hp = 0;
               this.explode(t);
@@ -551,6 +684,21 @@ export class BattleEngine {
   }
 
   private drawBullet(ctx: CanvasRenderingContext2D, bl: Bullet, night: boolean): void {
+    switch (bl.kind) {
+      case 'flame':
+        return this.drawFlame(ctx, bl);
+      case 'electric':
+        return this.drawElectric(ctx, bl);
+      case 'fart':
+        return this.drawFart(ctx, bl);
+      case 'chicken':
+        return this.drawChicken(ctx, bl);
+      default:
+        return this.drawNormalBullet(ctx, bl, night);
+    }
+  }
+
+  private drawNormalBullet(ctx: CanvasRenderingContext2D, bl: Bullet, night: boolean): void {
     ctx.fillStyle = night ? '#ffe9b0' : '#27241d';
     if (night) {
       ctx.shadowColor = '#ffd36b';
@@ -567,9 +715,105 @@ export class BattleEngine {
     ctx.lineTo(bl.x, bl.y);
     ctx.stroke();
   }
+
+  private drawFlame(ctx: CanvasRenderingContext2D, bl: Bullet): void {
+    const r = bl.size * (0.8 + Math.random() * 0.7);
+    ctx.save();
+    ctx.shadowColor = '#ff7b1a';
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = '#ffd24a';
+    ctx.beginPath();
+    ctx.arc(bl.x, bl.y, r, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(231,84,30,.75)';
+    ctx.beginPath();
+    ctx.arc(bl.x, bl.y, r * 0.6, 0, 7);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawElectric(ctx: CanvasRenderingContext2D, bl: Bullet): void {
+    ctx.save();
+    ctx.shadowColor = '#9fe3ff';
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = '#cfefff';
+    ctx.lineWidth = 2.4;
+    const sx = bl.x - bl.vx * 1.8;
+    const sy = bl.y - bl.vy * 1.8;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    const steps = 4;
+    for (let k = 1; k <= steps; k++) {
+      const t = k / steps;
+      const jx = (Math.random() - 0.5) * 6;
+      const jy = (Math.random() - 0.5) * 6;
+      ctx.lineTo(sx + (bl.x - sx) * t + jx, sy + (bl.y - sy) * t + jy);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(bl.x, bl.y, bl.size, 0, 7);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawFart(ctx: CanvasRenderingContext2D, bl: Bullet): void {
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#9bc24a';
+    ctx.beginPath();
+    ctx.arc(bl.x, bl.y, bl.size, 0, 7);
+    ctx.fill();
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = '#c7e08a';
+    ctx.beginPath();
+    ctx.arc(bl.x - bl.vx * 0.4, bl.y - bl.vy * 0.4, bl.size * 0.7, 0, 7);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawChicken(ctx: CanvasRenderingContext2D, bl: Bullet): void {
+    const s = bl.size;
+    ctx.save();
+    ctx.translate(bl.x, bl.y);
+    ctx.rotate(Math.atan2(bl.vy, bl.vx));
+    ctx.fillStyle = '#fdfdf5';
+    ctx.strokeStyle = '#27241d';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 1.3, s, 0, 0, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#e8941e'; // клюв
+    ctx.beginPath();
+    ctx.moveTo(s * 1.2, -2);
+    ctx.lineTo(s * 1.95, 0);
+    ctx.lineTo(s * 1.2, 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#c0392b'; // гребешок
+    ctx.beginPath();
+    ctx.arc(s * 0.6, -s * 0.95, 2, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = '#27241d'; // глаз
+    ctx.beginPath();
+    ctx.arc(s * 0.75, -s * 0.2, 1.3, 0, 7);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 export function flagGradient(countryId: string): string {
   const c = COUNTRIES[countryId].cols;
   return `linear-gradient(180deg,${c[0]} 33%,${c[1]} 33% 66%,${c[2]} 66%)`;
+}
+
+/** Смещения углов для веера из `count` снарядов, симметрично относительно 0,
+ *  с общим раствором `totalSpread` радиан. count=1 -> [0]. */
+export function fanAngles(count: number, totalSpread: number): number[] {
+  const n = Math.max(1, Math.min(9, Math.floor(count)));
+  if (n === 1) return [0];
+  const step = totalSpread / (n - 1);
+  const start = -totalSpread / 2;
+  return Array.from({ length: n }, (_, i) => start + step * i);
 }

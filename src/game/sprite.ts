@@ -94,5 +94,81 @@ export function buildSprite(stats: TankStats): TankSprite {
     ctx.fill();
   });
 
+  if (stats.faceId) drawFace(ctx, cx, cy, bodyLen, bodyWid, stats.faceId);
+
   return { canvas: cv, pivotX, pivotY, tipDist: bodyLen / 2 + barrel + 4 };
+}
+
+// Мультяшное «лицо» танка-персонажа, смотрит вперёд (по +X).
+function drawFace(ctx: CanvasRenderingContext2D, cx: number, cy: number, len: number, wid: number, faceId: string): void {
+  const ex = cx + len * 0.2;
+  const eyeOff = wid * 0.2;
+  const eyeR = Math.max(3, wid * 0.11);
+
+  const eye = (ey: number) => {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(ex, ey, eyeR, 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = '#27241d';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.fillStyle = '#27241d';
+    ctx.beginPath();
+    ctx.arc(ex + eyeR * 0.4, ey, eyeR * 0.5, 0, 7); // зрачок смотрит вперёд
+    ctx.fill();
+  };
+  eye(cy - eyeOff);
+  eye(cy + eyeOff);
+
+  // брови для злого/ворчливого
+  ctx.strokeStyle = '#27241d';
+  ctx.lineWidth = 2;
+  if (faceId === 'angry' || faceId === 'grumpy') {
+    ctx.beginPath();
+    ctx.moveTo(ex - eyeR, cy - eyeOff - eyeR);
+    ctx.lineTo(ex + eyeR, cy - eyeOff - eyeR * 0.2);
+    ctx.moveTo(ex - eyeR, cy + eyeOff + eyeR);
+    ctx.lineTo(ex + eyeR, cy + eyeOff + eyeR * 0.2);
+    ctx.stroke();
+  }
+
+  // рот
+  const mx = cx + len * 0.34;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#27241d';
+  if (faceId === 'fang') {
+    // открытая зубастая пасть (как на детских рисунках)
+    ctx.fillStyle = '#5a1410';
+    ctx.beginPath();
+    ctx.ellipse(mx, cy, wid * 0.14, wid * 0.22, 0, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(mx - wid * 0.06, cy + i * wid * 0.07);
+      ctx.lineTo(mx + wid * 0.12, cy + i * wid * 0.07 - 2);
+      ctx.lineTo(mx + wid * 0.12, cy + i * wid * 0.07 + 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (faceId === 'happy' || faceId === 'silly') {
+    ctx.beginPath();
+    ctx.arc(mx - 2, cy, wid * 0.16, -Math.PI * 0.15, Math.PI * 0.15);
+    ctx.stroke();
+    if (faceId === 'silly') {
+      ctx.fillStyle = '#c0392b'; // язык
+      ctx.beginPath();
+      ctx.arc(mx + wid * 0.1, cy + wid * 0.06, 3, 0, 7);
+      ctx.fill();
+    }
+  } else {
+    // angry/grumpy — недовольная зигзаг-линия
+    ctx.beginPath();
+    ctx.moveTo(mx - wid * 0.12, cy + 3);
+    ctx.lineTo(mx - wid * 0.04, cy - 2);
+    ctx.lineTo(mx + wid * 0.04, cy + 3);
+    ctx.lineTo(mx + wid * 0.12, cy - 2);
+    ctx.stroke();
+  }
 }

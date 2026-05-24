@@ -113,6 +113,41 @@ describe('UI: конструктор', () => {
     await user.click(screen.getByTestId('btn-back'));
     expect(screen.getByTestId('screen-title')).toBeInTheDocument();
   });
+
+  it('спецпушки доступны в конструкторе', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByTestId('btn-start-versus'));
+    expect(screen.getByTestId('card-cannon-flame')).toBeInTheDocument();
+    expect(screen.getByTestId('card-cannon-tesla')).toBeInTheDocument();
+    expect(screen.getByTestId('card-cannon-fart')).toBeInTheDocument();
+    await user.click(screen.getByTestId('card-cannon-chicken'));
+    expect(screen.getByTestId('prev-name')).toHaveTextContent('Курострел');
+  });
+
+  it('гараж: выбор персонажа задаёт весь конфиг', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByTestId('btn-start-versus'));
+    await user.click(screen.getByTestId('garage-kurokidala'));
+    // Курокидала стреляет курицами
+    expect(screen.getByTestId('prev-name')).toHaveTextContent('Курострел');
+    expect(useGame.getState().players[0].cannon).toBe('chicken');
+    expect(useGame.getState().players[0].faceId).toBe('silly');
+  });
+
+  it('управление мышью у одного игрока сбрасывает мышь у другого', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.click(screen.getByTestId('btn-start-versus'));
+    await user.click(screen.getByTestId('control-mouse')); // игрок 1 -> мышь
+    expect(useGame.getState().players[0].control).toBe('mouse');
+    // переходим к игроку 2 и тоже выбираем мышь
+    await user.click(screen.getByTestId('btn-next'));
+    await user.click(screen.getByTestId('control-mouse'));
+    expect(useGame.getState().players[1].control).toBe('mouse');
+    expect(useGame.getState().players[0].control).toBe('keys'); // у первого сброшено
+  });
 });
 
 describe('UI: бой и исход', () => {

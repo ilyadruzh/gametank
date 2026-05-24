@@ -36,6 +36,21 @@ describe('computeStats (JS-фолбэк)', () => {
     expect(scout.radius).toBeLessThan(std.radius);
     expect(scout.speed).toBeGreaterThan(std.speed);
   });
+
+  it('спецпушки пробрасывают тип и свои поля', () => {
+    const chicken = computeStats({ ...defaultConfig(), cannon: 'chicken' });
+    expect(chicken.cannonKind).toBe('chicken');
+    expect(chicken.bounces).toBe(3);
+    expect(chicken.blife).toBe(220);
+
+    const fart = computeStats({ ...defaultConfig(), cannon: 'fart' });
+    expect(fart.cannonKind).toBe('fart');
+    expect(fart.push).toBe(16);
+
+    const gun = computeStats(defaultConfig());
+    expect(gun.cannonKind).toBe('normal');
+    expect(gun.bounces).toBe(0);
+  });
 });
 
 describe('statRows', () => {
