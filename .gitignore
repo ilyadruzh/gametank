@@ -1,0 +1,26 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vite
+
+# test output
+coverage
+playwright-report
+test-results
+.playwright
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# AssemblyScript debug artifacts (release wasm IS committed so the app runs without a build step)
+src/wasm/physics.debug.wasm

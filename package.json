@@ -1,0 +1,46 @@
+{
+  "name": "tankoboy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ТАНКОБОЙ — собери танк из частей и сразись с другом. React + WebAssembly + 3D.",
+  "scripts": {
+    "asbuild": "asc assembly/index.ts --outFile src/wasm/physics.wasm --textFile src/wasm/physics.wat --optimize --runtime minimal",
+    "asbuild:debug": "asc assembly/index.ts --outFile src/wasm/physics.debug.wasm --debug --runtime minimal",
+    "prebuild": "npm run asbuild",
+    "predev": "npm run asbuild",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run asbuild",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.114.0",
+    "@react-three/fiber": "^8.17.10",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.169.0",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^22.19.19",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.169.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "assemblyscript": "^0.27.30",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.2"
+  }
+}
