@@ -67,15 +67,16 @@ function Face3D({ faceId, len, wid, hullH }: { faceId: string; len: number; wid:
 function Tracks({ trackId, len, wid, trackH }: { trackId: string; len: number; wid: number; trackH: number }) {
   const trackZ = wid / 2 + trackH * 0.3;
   const wheelR = trackH * 0.5;
-  const counts: Record<string, number> = { sport: 2, light: 7, medium: 5, heavy: 5, siege: 6 };
+  const counts: Record<string, number> = { sport: 2, light: 7, medium: 5, heavy: 5, siege: 6, wheels: 3 };
   const nWheels = counts[trackId] ?? 5;
-  const bigWheel = trackId === 'sport' || trackId === 'heavy';
+  const bigWheel = trackId === 'sport' || trackId === 'heavy' || trackId === 'wheels';
+  const wheeled = trackId === 'wheels';
   return (
     <>
       {[-1, 1].map((side) => (
         <group key={side} position={[0, 0, side * trackZ]}>
           <mesh position={[0, trackH / 2, 0]} castShadow>
-            <boxGeometry args={[len * 1.08, trackH, trackH * (trackId === 'siege' ? 1.25 : 0.95)]} />
+            <boxGeometry args={[len * 1.08, wheeled ? trackH * 0.4 : trackH, trackH * (trackId === 'siege' ? 1.25 : 0.95)]} />
             <meshStandardMaterial color="#2c2820" flatShading roughness={1} />
           </mesh>
           {Array.from({ length: nWheels }, (_, i) => {
@@ -96,7 +97,12 @@ function Tracks({ trackId, len, wid, trackH }: { trackId: string; len: number; w
 
 function Hull({ hullId, len, wid, hullH, color, color2 }: { hullId: string; len: number; wid: number; hullH: number; color: string; color2: string }) {
   const sharp = hullId === 'bunker' || hullId === 'fortress';
-  const radius = hullId === 'glass' ? Math.min(hullH, wid) * 0.32 : hullId === 'standard' || hullId === 'scout' ? Math.min(hullH, wid) * 0.18 : 0.02;
+  const radius =
+    hullId === 'glass'
+      ? Math.min(hullH, wid) * 0.32
+      : hullId === 'standard' || hullId === 'scout' || hullId === 'wedge'
+        ? Math.min(hullH, wid) * 0.18
+        : 0.02;
   const bolt = (x: number, z: number) => (
     <mesh position={[x, hullH * 0.5, z]}>
       <sphereGeometry args={[wid * 0.05, 8, 8]} />
@@ -122,7 +128,7 @@ function Hull({ hullId, len, wid, hullH, color, color2 }: { hullId: string; len:
         <meshStandardMaterial color={color2} flatShading roughness={0.8} />
       </mesh>
 
-      {hullId === 'scout' && (
+      {(hullId === 'scout' || hullId === 'wedge') && (
         <mesh position={[len * 0.5, hullH * 0.5, 0]} rotation={[0, 0, -0.5]}>
           <boxGeometry args={[len * 0.18, hullH * 0.9, wid * 0.98]} />
           <meshStandardMaterial color={color} flatShading roughness={0.7} />
@@ -178,6 +184,20 @@ function Turret({ turretId, turretR, turretH, color, color2 }: { turretId: strin
         <mesh position={[turretR * 0.9, 0, 0]}>
           <boxGeometry args={[turretR * 0.6, turretH * 0.8, turretR * 1.0]} />
           <meshStandardMaterial color="#5a564c" metalness={0.3} roughness={0.5} />
+        </mesh>
+      </group>
+    );
+  }
+  if (turretId === 'mortar') {
+    return (
+      <group>
+        <mesh castShadow>
+          <boxGeometry args={[turretR * 2, turretH * 1.1, turretR * 2]} />
+          <meshStandardMaterial color={color2} flatShading roughness={0.7} metalness={0.18} />
+        </mesh>
+        <mesh position={[0, turretH * 0.55, 0]}>
+          <boxGeometry args={[turretR, turretH * 0.3, turretR]} />
+          <meshStandardMaterial color={color} roughness={0.7} />
         </mesh>
       </group>
     );

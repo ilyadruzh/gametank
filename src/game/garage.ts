@@ -52,4 +52,10 @@ export const GERAND_TANKS: GarageTank[] = [
   tank('shmyg', 'Шмыг', 'Самый быстрый разведчик в гараже', 'derp', {
     country: 'nor', tracks: 'sport', turret: 'small', cannon: 'mg', hull: 'scout',
   }),
+  tank('katyusha', 'Катюха', 'Колёсная ракетница — бьёт навесом издали', 'cool', {
+    country: 'aqu', tracks: 'wheels', turret: 'mortar', cannon: 'rocket', hull: 'wedge',
+  }),
+  tank('tolstun', 'Толстун', 'Клиновой лоб и мортирная башня', 'grumpy', {
+    country: 'sol', tracks: 'siege', turret: 'mortar', cannon: 'howitzer', hull: 'wedge',
+  }),
 ];

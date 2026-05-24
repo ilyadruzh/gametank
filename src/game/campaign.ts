@@ -7,10 +7,10 @@ const STORAGE_KEY = 'tankoboy.campaign.v1';
 
 // Что доступно с самого начала (страны не блокируются — это «флаг», а не деталь).
 export const BASE_UNLOCKS: Record<PartCategory, string[]> = {
-  tracks: ['sport', 'light', 'medium', 'siege'], // heavy — награда за миссию
-  turret: ['small', 'twin'], // big — награда
+  tracks: ['sport', 'light', 'medium', 'siege', 'wheels'], // heavy — награда за миссию
+  turret: ['small', 'twin', 'mortar'], // big — награда
   cannon: ['mg', 'gun', 'flame', 'tesla', 'fart', 'chicken', 'rocket'], // howitzer — награда
-  hull: ['glass', 'scout', 'standard', 'fortress'], // bunker — награда
+  hull: ['glass', 'scout', 'standard', 'fortress', 'wedge'], // bunker — награда
 };
 
 export type UnlockSet = Record<PartCategory, Set<string>>;

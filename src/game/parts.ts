@@ -14,12 +14,14 @@ export const TRACKS: Record<string, TrackPart> = {
   medium: { name: 'Средние', desc: 'Золотая середина', hp: 45, speed: 2.1, len: 74, wid: 50, thick: 12 },
   heavy: { name: 'Тяжёлые', desc: 'Медленные, но крепкие', hp: 95, speed: 1.55, len: 86, wid: 58, thick: 15 },
   siege: { name: 'Осадные', desc: 'Ползёт, но как крепость', hp: 150, speed: 1.15, len: 94, wid: 64, thick: 18 },
+  wheels: { name: 'Колёса', desc: 'Колёсный ход — быстрый', hp: 20, speed: 2.5, len: 70, wid: 46, thick: 13 },
 };
 
 export const TURRETS: Record<string, TurretPart> = {
   small: { name: 'Лёгкая башня', desc: 'Шустрый поворот', turn: 0.06, armor: 0, size: 24 },
   twin: { name: 'Спаренная', desc: 'Средняя во всём', turn: 0.05, armor: 22, size: 28 },
   big: { name: 'Тяжёлая башня', desc: '+броня, но медленнее', turn: 0.038, armor: 45, size: 34 },
+  mortar: { name: 'Мортирная', desc: 'Бронированная, медленный поворот', turn: 0.03, armor: 60, size: 36 },
 };
 
 export const CANNONS: Record<string, CannonPart> = {
@@ -40,6 +42,7 @@ export const HULLS: Record<string, HullPart> = {
   standard: { name: 'Стандарт', desc: 'Без сюрпризов', hp: 20, speedMul: 1.0, sizeMul: 1.0 },
   bunker: { name: 'Бункер', desc: 'Толстая шкура, тяжёлый', hp: 70, speedMul: 0.9, sizeMul: 1.08 },
   fortress: { name: 'Крепость', desc: 'Ходячая стена', hp: 120, speedMul: 0.8, sizeMul: 1.15 },
+  wedge: { name: 'Клин', desc: 'Скошенный лоб, рикошеты', hp: 40, speedMul: 1.02, sizeMul: 1.0 },
 };
 
 export const COUNTRIES: Record<string, Country> = {

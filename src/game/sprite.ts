@@ -70,6 +70,12 @@ function drawTracks(ctx: CanvasRenderingContext2D, cx: number, cy: number, stats
       [-trkLen * 0.28, trkLen * 0.28].forEach((dx) => {
         sketchCircle(ctx, cx + dx, cy + off, ov * 0.42, { fill: '#5a5347', color: '#1c1a14', w: 1.6 });
       });
+    } else if (stats.trackId === 'wheels') {
+      // колёсный ход — три больших колеса с дисками
+      [-trkLen * 0.32, 0, trkLen * 0.32].forEach((dx) => {
+        sketchCircle(ctx, cx + dx, cy + off, ov * 0.55, { fill: '#2c2820', color: '#1c1a14', w: 1.8 });
+        sketchCircle(ctx, cx + dx, cy + off, ov * 0.22, { fill: '#6f6a5d', color: '#1c1a14', w: 1.2 });
+      });
     } else if (stats.trackId === 'siege') {
       // широкие зубья-«грунтозацепы»
       for (let x = cx - trkLen / 2 + 4; x < cx + trkLen / 2 - 4; x += 11) {
@@ -103,7 +109,7 @@ function drawHull(ctx: CanvasRenderingContext2D, cx: number, cy: number, stats: 
   const x0 = cx - L / 2;
   const y0 = cy - Wd / 2;
 
-  if (stats.hullId === 'scout') {
+  if (stats.hullId === 'scout' || stats.hullId === 'wedge') {
     // скошенный нос
     ctx.fillStyle = body;
     ctx.beginPath();
@@ -192,6 +198,10 @@ function drawTurret(ctx: CanvasRenderingContext2D, cx: number, cy: number, stats
     ctx.lineWidth = 2.4;
     ctx.stroke();
     sketchCircle(ctx, tx - r * 0.3, cy - r * 0.3, r * 0.32, { color: INK, w: 1.6 }); // люк
+  } else if (stats.turretId === 'mortar') {
+    // мортирная — массивный скруглённый блок
+    sketchRect(ctx, tx - r * 0.95, cy - r * 0.95, r * 1.9, r * 1.9, { fill: body2, color: INK, w: 2.6, r: 6 });
+    sketchRect(ctx, tx - r * 0.5, cy - r * 0.5, r, r, { color: darken(stats.color, 0.55), w: 1.4, passes: 1 });
   } else {
     // small — низкая круглая
     sketchCircle(ctx, tx, cy, r, { fill: body2, color: INK, w: 2.4 });
