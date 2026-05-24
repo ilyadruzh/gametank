@@ -97,6 +97,9 @@ export interface TankStats {
   thick: number;
   tsize: number;
   cannon: string;
+  trackId: string;
+  turretId: string;
+  hullId: string;
   radius: number;
   color: string;
   color2: string;

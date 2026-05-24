@@ -37,6 +37,13 @@ describe('computeStats (JS-фолбэк)', () => {
     expect(scout.speed).toBeGreaterThan(std.speed);
   });
 
+  it('пробрасывает id деталей для рендера дизайна', () => {
+    const st = computeStats({ ...defaultConfig(), tracks: 'siege', turret: 'big', hull: 'fortress' });
+    expect(st.trackId).toBe('siege');
+    expect(st.turretId).toBe('big');
+    expect(st.hullId).toBe('fortress');
+  });
+
   it('спецпушки пробрасывают тип и свои поля', () => {
     const chicken = computeStats({ ...defaultConfig(), cannon: 'chicken' });
     expect(chicken.cannonKind).toBe('chicken');
