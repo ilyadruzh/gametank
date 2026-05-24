@@ -4,7 +4,7 @@ import type { Group, Mesh, MeshStandardMaterial } from 'three';
 import { WORLD_H, WORLD_W, type BattleEngine } from '../game/engine';
 import { computeStats } from '../game/stats';
 import type { CannonKind, PlayerConfig } from '../game/types';
-import TankMesh, { TANK_S } from './three/TankMesh';
+import { HullMesh, TurretMesh, TANK_S, TURRET_MAX_ELEV, turretMountY } from './three/TankMesh';
 
 const S = TANK_S;
 const WX = (ax: number) => (ax - WORLD_W / 2) * S;
@@ -22,8 +22,9 @@ const BULLET_COLOR: Record<CannonKind, string> = {
 type Eng = BattleEngine;
 
 function Scene({ engineRef, players, night }: { engineRef: React.MutableRefObject<Eng | null>; players: [PlayerConfig, PlayerConfig]; night: boolean }) {
-  const tank0 = useRef<Group>(null);
-  const tank1 = useRef<Group>(null);
+  const hullRefs = useRef<(Group | null)[]>([]);
+  const turretRefs = useRef<(Group | null)[]>([]);
+  const barrelRefs = useRef<(Group | null)[]>([]);
   const bullets = useRef<(Mesh | null)[]>([]);
   const obstacleRefs = useRef<(Mesh | null)[]>([]);
   const mineRefs = useRef<(Group | null)[]>([]);
@@ -52,13 +53,17 @@ function Scene({ engineRef, players, night }: { engineRef: React.MutableRefObjec
       camera.lookAt(tx, 0, tz);
     }
 
-    const refs = [tank0.current, tank1.current];
     snap.tanks.forEach((t) => {
-      const g = refs[t.i];
-      if (!g) return;
-      g.visible = t.hp > 0;
-      g.position.set(WX(t.x), 0, WZ(t.y));
-      g.rotation.y = -t.angle;
+      const hull = hullRefs.current[t.i];
+      const turret = turretRefs.current[t.i];
+      const barrel = barrelRefs.current[t.i];
+      if (hull) {
+        hull.visible = t.hp > 0;
+        hull.position.set(WX(t.x), 0, WZ(t.y));
+        hull.rotation.y = -t.angle;
+      }
+      if (turret) turret.rotation.y = t.angle - t.turretAngle; // мировой угол = -turretAngle
+      if (barrel) barrel.rotation.z = t.elevation * TURRET_MAX_ELEV; // возвышение ствола
     });
 
     const pool = bullets.current;
@@ -100,12 +105,14 @@ function Scene({ engineRef, players, night }: { engineRef: React.MutableRefObjec
         <meshStandardMaterial color={night ? '#12181f' : '#e7d9b6'} roughness={1} />
       </mesh>
 
-      <group ref={tank0}>
-        <TankMesh stats={stats[0]} />
-      </group>
-      <group ref={tank1}>
-        <TankMesh stats={stats[1]} />
-      </group>
+      {stats.map((st, i) => (
+        <group key={i} ref={(g) => (hullRefs.current[i] = g)}>
+          <HullMesh stats={st} />
+          <group ref={(g) => (turretRefs.current[i] = g)} position={[0, turretMountY(st), 0]}>
+            <TurretMesh stats={st} barrelRef={(g: Group | null) => (barrelRefs.current[i] = g)} />
+          </group>
+        </group>
+      ))}
 
       {initial.obstacles.map((o, i) => (
         <mesh

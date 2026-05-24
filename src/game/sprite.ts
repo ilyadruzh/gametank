@@ -5,9 +5,11 @@ import { darken, sketchCircle, sketchLine, sketchRect } from './sketch';
 import type { TankStats } from './types';
 
 export interface TankSprite {
-  canvas: HTMLCanvasElement;
+  hull: HTMLCanvasElement; // корпус+гусеницы+лицо (вращается с корпусом)
+  turret: HTMLCanvasElement; // башня+ствол (вращается независимо)
   pivotX: number;
   pivotY: number;
+  tPivot: number; // центр квадратного канваса башни
   tipDist: number;
 }
 
@@ -21,34 +23,34 @@ export function buildSprite(stats: TankStats): TankSprite {
   const bodyWid = stats.wid;
   const barrel = stats.blen;
   const ov = stats.thick;
-  const pivotX = bodyLen / 2 + margin;
-  const pivotY = bodyWid / 2 + ov + margin;
-  const W = pivotX + (bodyLen / 2 + barrel) + margin + 6;
-  const H = pivotY * 2;
-
-  const cv = document.createElement('canvas');
-  cv.width = Math.ceil(W);
-  cv.height = Math.ceil(H);
-  const ctx = cv.getContext('2d')!;
-  const cx = pivotX;
-  const cy = pivotY;
   const body = stats.color;
   const body2 = darken(stats.color, 0.7);
+  const tipDist = bodyLen / 2 + barrel + 4;
 
-  // тень снизу
-  ctx.fillStyle = 'rgba(0,0,0,.10)';
-  ctx.beginPath();
-  ctx.ellipse(cx + 3, cy + 5, bodyLen / 2 + 4, bodyWid / 2 + ov, 0, 0, 7);
-  ctx.fill();
+  // --- КОРПУС ---
+  const pivotX = bodyLen / 2 + margin;
+  const pivotY = bodyWid / 2 + ov + margin;
+  const hull = document.createElement('canvas');
+  hull.width = Math.ceil(pivotX * 2);
+  hull.height = Math.ceil(pivotY * 2);
+  const hctx = hull.getContext('2d')!;
+  hctx.fillStyle = 'rgba(0,0,0,.10)';
+  hctx.beginPath();
+  hctx.ellipse(pivotX + 3, pivotY + 5, bodyLen / 2 + 4, bodyWid / 2 + ov, 0, 0, 7);
+  hctx.fill();
+  drawTracks(hctx, pivotX, pivotY, stats);
+  drawHull(hctx, pivotX, pivotY, stats, body, body2);
+  if (stats.faceId) drawFace(hctx, pivotX, pivotY, bodyLen, bodyWid, stats.faceId);
 
-  drawTracks(ctx, cx, cy, stats);
-  drawHull(ctx, cx, cy, stats, body, body2);
-  drawCannon(ctx, cx, cy, stats); // ствол под башней
-  drawTurret(ctx, cx, cy, stats, body2);
+  // --- БАШНЯ + СТВОЛ (квадрат, чтобы вращалась в любую сторону) ---
+  const reach = Math.ceil(tipDist + 12);
+  const turret = document.createElement('canvas');
+  turret.width = turret.height = reach * 2;
+  const tctx = turret.getContext('2d')!;
+  drawCannon(tctx, reach, reach, stats);
+  drawTurret(tctx, reach, reach, stats, body2);
 
-  if (stats.faceId) drawFace(ctx, cx, cy, bodyLen, bodyWid, stats.faceId);
-
-  return { canvas: cv, pivotX, pivotY, tipDist: bodyLen / 2 + barrel + 4 };
+  return { hull, turret, pivotX, pivotY, tPivot: reach, tipDist };
 }
 
 // ---------- ГУСЕНИЦЫ ----------

@@ -44,8 +44,14 @@ interface Controls {
   left: string;
   right: string;
   fire: string;
+  turretL: string;
+  turretR: string;
+  elevUp: string;
+  elevDown: string;
   ring: string;
 }
+
+const TURRET_TURN = 0.075; // скорость поворота башни (рад/тик)
 
 interface Tank {
   i: number;
@@ -61,6 +67,9 @@ interface Tank {
   lastShot: number;
   ctrl: Controls;
   flash: number;
+  // независимая башня
+  turretAngle: number;
+  elevation: number; // 0..1, навес для баллистики
   // состояние ИИ
   botStrafe: number;
   botStrafeUntil: number;
@@ -126,13 +135,28 @@ export interface BattleOptions {
   seed?: number;
 }
 
-const P1_CONTROLS: Controls = { fwd: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', fire: 'Space', ring: '#2f6fb0' };
+const P1_CONTROLS: Controls = {
+  fwd: 'KeyW',
+  back: 'KeyS',
+  left: 'KeyA',
+  right: 'KeyD',
+  fire: 'Space',
+  turretL: 'KeyQ',
+  turretR: 'KeyE',
+  elevUp: 'KeyR',
+  elevDown: 'KeyF',
+  ring: '#2f6fb0',
+};
 const P2_CONTROLS: Controls = {
   fwd: 'ArrowUp',
   back: 'ArrowDown',
   left: 'ArrowLeft',
   right: 'ArrowRight',
   fire: 'Enter',
+  turretL: 'Comma',
+  turretR: 'Period',
+  elevUp: 'BracketRight',
+  elevDown: 'BracketLeft',
   ring: '#c0392b',
 };
 
@@ -200,7 +224,7 @@ export class BattleEngine {
   snapshot() {
     return {
       over: this.over,
-      tanks: this.tanks.map((t) => ({ i: t.i, x: t.x, y: t.y, angle: t.angle, hp: t.hp, maxHp: t.maxHp, flash: t.flash })),
+      tanks: this.tanks.map((t) => ({ i: t.i, x: t.x, y: t.y, angle: t.angle, turretAngle: t.turretAngle, elevation: t.elevation, hp: t.hp, maxHp: t.maxHp, flash: t.flash })),
       bullets: this.bullets.map((b) => ({ x: b.x, y: b.y, vx: b.vx, vy: b.vy, size: b.size, kind: b.kind })),
       obstacles: this.obstacles.map((o) => ({ x: o.x, y: o.y, r: o.r, type: o.type, hp: o.hp, maxHp: o.maxHp })),
       mines: this.mines.map((m) => ({ x: m.x, y: m.y, r: m.r, armed: m.armed })),
@@ -254,6 +278,8 @@ export class BattleEngine {
       lastShot: 0,
       ctrl: i === 0 ? P1_CONTROLS : P2_CONTROLS,
       flash: 0,
+      turretAngle: i === 0 ? 0 : Math.PI,
+      elevation: 0.5,
       botStrafe: Math.random() < 0.5 ? 1 : -1,
       botStrafeUntil: 0,
       botAimErr: 0,
@@ -263,7 +289,7 @@ export class BattleEngine {
 
   private fireShot(t: Tank): void {
     const offsets = fanAngles(t.shotCount, 0.14 * (t.shotCount - 1));
-    for (const off of offsets) this.spawnBullet(t, t.angle + off);
+    for (const off of offsets) this.spawnBullet(t, t.turretAngle + off);
   }
 
   private spawnBullet(t: Tank, angle: number): void {
@@ -448,7 +474,12 @@ export class BattleEngine {
 
   // Ввод бота: наводится с поправкой на сложность, держит дистанцию под свою
   // пушку и «орбитит» вокруг цели, чтобы сложнее было попасть.
-  private botInput(bot: Tank, target: Tank, now: number, dt: number): { move: number; turn: number; fire: boolean } {
+  private botInput(
+    bot: Tank,
+    target: Tank,
+    now: number,
+    dt: number
+  ): { move: number; turn: number; aim: number; tol: number; gate: number } {
     const p = DIFF_PARAMS[this.difficulty];
     const dx = target.x - bot.x;
     const dy = target.y - bot.y;
@@ -463,30 +494,27 @@ export class BattleEngine {
     }
     bot.botAimErr *= Math.max(0, 1 - 0.05 * dt);
 
-    let diff = desired - bot.angle + bot.botAimErr;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-
-    let turn = Math.abs(diff) < p.tol ? 0 : diff > 0 ? 1 : -1;
-
+    // корпус: держит дистанцию и орбитит (по направлению на цель)
+    let bodyDiff = desired - bot.angle;
+    while (bodyDiff > Math.PI) bodyDiff -= Math.PI * 2;
+    while (bodyDiff < -Math.PI) bodyDiff += Math.PI * 2;
+    let turn = Math.abs(bodyDiff) < 0.1 ? 0 : bodyDiff > 0 ? 1 : -1;
     let move: number;
     if (dist > p.band[1]) move = 1;
     else if (dist < p.band[0]) move = -1;
     else {
-      // в зоне боя — кружим вокруг цели
       if (Math.random() < p.orbit) {
         move = 1;
-        if (turn === 0) turn = bot.botStrafe; // довернуть для дуги облёта
+        if (turn === 0) turn = bot.botStrafe;
       } else {
         move = 0;
       }
     }
 
-    const fire = Math.abs(diff) < p.tol && Math.random() < p.fireGate;
-    return { move, turn, fire };
+    return { move, turn, aim: desired + bot.botAimErr, tol: p.tol, gate: p.fireGate };
   }
 
-  // Управление мышью: танк поворачивается к курсору, едет к нему, ЛКМ — огонь.
+  // Управление мышью: корпус едет к курсору; башня наводится туда же (см. update).
   private mouseInput(t: Tank): { move: number; turn: number; fire: boolean } {
     const dx = this.mouse.x - t.x;
     const dy = this.mouse.y - t.y;
@@ -496,7 +524,7 @@ export class BattleEngine {
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     const turn = Math.abs(diff) < 0.04 ? 0 : diff > 0 ? 1 : -1;
-    const move = dist > t.st.radius + 18 ? 1 : 0;
+    const move = dist > t.st.radius + 60 ? 1 : 0;
     return { move, turn, fire: this.mouseDown };
   }
 
@@ -513,17 +541,28 @@ export class BattleEngine {
         const bi = this.botInput(t, this.tanks[0], now, dt);
         move = bi.move;
         turn = bi.turn;
-        firing = bi.fire;
+        // башня наводится на цель, огонь — когда наведена
+        t.turretAngle = rotateToward(t.turretAngle, bi.aim, TURRET_TURN * dt);
+        firing = angleDiff(t.turretAngle, bi.aim) < bi.tol && Math.random() < bi.gate;
+        const dist = Math.hypot(this.tanks[0].x - t.x, this.tanks[0].y - t.y);
+        t.elevation = Math.max(0, Math.min(1, dist / 900));
       } else if (t.cfg.control === 'mouse') {
         const mi = this.mouseInput(t);
         move = mi.move;
         turn = mi.turn;
         firing = mi.fire;
+        const aim = Math.atan2(this.mouse.y - t.y, this.mouse.x - t.x);
+        t.turretAngle = rotateToward(t.turretAngle, aim, TURRET_TURN * dt);
+        t.elevation = Math.max(0, Math.min(1, Math.hypot(this.mouse.x - t.x, this.mouse.y - t.y) / 900));
       } else {
         const k = t.ctrl;
         move = (this.keys[k.fwd] ? 1 : 0) - (this.keys[k.back] ? 1 : 0);
         turn = (this.keys[k.right] ? 1 : 0) - (this.keys[k.left] ? 1 : 0);
         firing = !!this.keys[k.fire];
+        const tr = (this.keys[k.turretR] ? 1 : 0) - (this.keys[k.turretL] ? 1 : 0);
+        t.turretAngle += tr * TURRET_TURN * dt;
+        const ev = (this.keys[k.elevUp] ? 1 : 0) - (this.keys[k.elevDown] ? 1 : 0);
+        t.elevation = Math.max(0, Math.min(1, t.elevation + ev * 0.02 * dt));
       }
 
       // кинематика в WASM
@@ -830,8 +869,15 @@ export class BattleEngine {
       ctx.arc(0, 0, t.st.radius + 7, 0, 7);
       ctx.stroke();
       ctx.setLineDash([]);
+      // корпус (поворот по направлению движения)
+      ctx.save();
       ctx.rotate(t.angle);
-      ctx.drawImage(t.spr.canvas, -t.spr.pivotX, -t.spr.pivotY);
+      ctx.drawImage(t.spr.hull, -t.spr.pivotX, -t.spr.pivotY);
+      ctx.restore();
+      // башня (независимый поворот)
+      ctx.save();
+      ctx.rotate(t.turretAngle);
+      ctx.drawImage(t.spr.turret, -t.spr.tPivot, -t.spr.tPivot);
       if (t.flash > 0) {
         if (night) {
           ctx.shadowColor = '#ffd36b';
@@ -843,6 +889,7 @@ export class BattleEngine {
         ctx.fill();
         ctx.shadowBlur = 0;
       }
+      ctx.restore();
       ctx.restore();
       ctx.fillStyle = t.ctrl.ring;
       ctx.font = 'bold 18px "Permanent Marker", cursive';
@@ -1021,6 +1068,23 @@ export class BattleEngine {
 export function flagGradient(countryId: string): string {
   const c = COUNTRIES[countryId].cols;
   return `linear-gradient(180deg,${c[0]} 33%,${c[1]} 33% 66%,${c[2]} 66%)`;
+}
+
+/** Кратчайшая разница углов (модуль), рад. */
+export function angleDiff(a: number, b: number): number {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return Math.abs(d);
+}
+
+/** Повернуть угол cur к target не больше чем на maxStep. */
+export function rotateToward(cur: number, target: number, maxStep: number): number {
+  let d = target - cur;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  if (Math.abs(d) <= maxStep) return target;
+  return cur + Math.sign(d) * maxStep;
 }
 
 /** Камера, вписывающая обе точки в вьюпорт vw×vh (мировые координаты). */

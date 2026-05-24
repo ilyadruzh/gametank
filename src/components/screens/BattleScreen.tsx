@@ -237,12 +237,12 @@ export default function BattleScreen() {
       <div className="ctrl-hint">
         <span style={{ color: 'var(--p1)' }}>
           <b>Игрок 1:</b>{' '}
-          {p1Mouse ? 'мышь — ехать к курсору, ЛКМ — огонь' : 'W A S D — ехать, ПРОБЕЛ — огонь, 1–9 — веер'}
+          {p1Mouse ? 'мышь — башня/курсор, ЛКМ — огонь' : 'WASD — ехать, Q/E — башня, R/F — навес, ПРОБЕЛ — огонь, 1–9 — веер'}
         </span>
         {mode === 'versus' ? (
           <span style={{ color: 'var(--p2)' }}>
             <b>Игрок 2:</b>{' '}
-            {p2Mouse ? 'мышь — ехать к курсору, ЛКМ — огонь' : '← ↑ ↓ → — ехать, ENTER — огонь, Num 1–9 — веер'}
+            {p2Mouse ? 'мышь — башня/курсор, ЛКМ — огонь' : '↑↓←→ — ехать, «,»/«.» — башня, [ ] — навес, ENTER — огонь'}
           </span>
         ) : (
           <span style={{ color: 'var(--p2)' }}>

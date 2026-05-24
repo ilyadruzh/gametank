@@ -1,4 +1,5 @@
 import { RoundedBox } from '@react-three/drei';
+import type { Group } from 'three';
 import type { TankStats } from '../../game/types';
 
 export const TANK_S = 0.045; // масштаб игровых единиц в 3D
@@ -291,37 +292,82 @@ function Barrel({ kind, cannon, baseX, y, barrelLen, barrelR }: { kind: string; 
   );
 }
 
-export default function TankMesh({ stats }: { stats: TankStats }) {
+export const TURRET_MAX_ELEV = 0.55; // макс. возвышение ствола (рад)
+
+interface Dims {
+  len: number;
+  wid: number;
+  hullH: number;
+  trackH: number;
+  turretR: number;
+  turretH: number;
+  barrelLen: number;
+  barrelR: number;
+  hullY: number;
+}
+function dims(stats: TankStats): Dims {
   const S = TANK_S;
   const len = stats.len * S;
   const wid = stats.wid * S;
   const hullH = wid * 0.5;
-  const trackH = stats.thick * S * 1.6;
   const turretR = (stats.tsize / 1.6) * S;
   const turretH = turretR * 1.05;
-  const turretX = -len * 0.05;
-  const turretY = hullH + turretH / 2;
-  const barrelBase = turretX + turretR * 0.8;
-  const barrelLen = len / 2 + stats.blen * S - turretR * 0.8;
-  const barrelR = Math.max(0.03, (stats.bw / 2) * S);
+  return {
+    len,
+    wid,
+    hullH,
+    trackH: stats.thick * S * 1.6,
+    turretR,
+    turretH,
+    barrelLen: len / 2 + stats.blen * S - turretR * 0.8,
+    barrelR: Math.max(0.03, (stats.bw / 2) * S),
+    hullY: -hullH * 0.25,
+  };
+}
 
+/** Точка крепления башни (по Y) в мировом масштабе 3D. */
+export function turretMountY(stats: TankStats): number {
+  const d = dims(stats);
+  return d.hullY + d.hullH + d.turretH / 2;
+}
+
+/** Корпус, гусеницы, антенна и лицо (вращается с корпусом). */
+export function HullMesh({ stats }: { stats: TankStats }) {
+  const d = dims(stats);
   return (
-    <group position={[0, -hullH * 0.25, 0]}>
-      <Hull hullId={stats.hullId} len={len} wid={wid} hullH={hullH} color={stats.color} color2={stats.color2} />
-      <Tracks trackId={stats.trackId} len={len} wid={wid} trackH={trackH} />
-
-      <group position={[turretX, turretY, 0]}>
-        <Turret turretId={stats.turretId} turretR={turretR} turretH={turretH} color={stats.color} color2={stats.color2} />
-      </group>
-      <Barrel kind={stats.cannonKind} cannon={stats.cannon} baseX={barrelBase} y={turretY} barrelLen={barrelLen} barrelR={barrelR} />
-
-      {/* антенна */}
-      <mesh position={[-len * 0.42, hullH + turretR * 1.1, wid * 0.3]}>
-        <cylinderGeometry args={[barrelR * 0.25, barrelR * 0.25, turretR * 2.2, 6]} />
+    <group position={[0, d.hullY, 0]}>
+      <Hull hullId={stats.hullId} len={d.len} wid={d.wid} hullH={d.hullH} color={stats.color} color2={stats.color2} />
+      <Tracks trackId={stats.trackId} len={d.len} wid={d.wid} trackH={d.trackH} />
+      <mesh position={[-d.len * 0.42, d.hullH + d.turretR * 1.1, d.wid * 0.3]}>
+        <cylinderGeometry args={[d.barrelR * 0.25, d.barrelR * 0.25, d.turretR * 2.2, 6]} />
         <meshStandardMaterial color="#1a1714" />
       </mesh>
+      {stats.faceId && <Face3D faceId={stats.faceId} len={d.len} wid={d.wid} hullH={d.hullH} />}
+    </group>
+  );
+}
 
-      {stats.faceId && <Face3D faceId={stats.faceId} len={len} wid={wid} hullH={hullH} />}
+/** Башня + ствол (вращается независимо). `barrelRef` — группа ствола для возвышения. */
+export function TurretMesh({ stats, barrelRef }: { stats: TankStats; barrelRef?: React.Ref<Group> }) {
+  const d = dims(stats);
+  return (
+    <group>
+      <Turret turretId={stats.turretId} turretR={d.turretR} turretH={d.turretH} color={stats.color} color2={stats.color2} />
+      <group ref={barrelRef}>
+        <Barrel kind={stats.cannonKind} cannon={stats.cannon} baseX={d.turretR * 0.8} y={0} barrelLen={d.barrelLen} barrelR={d.barrelR} />
+      </group>
+    </group>
+  );
+}
+
+export default function TankMesh({ stats }: { stats: TankStats }) {
+  const d = dims(stats);
+  return (
+    <group>
+      <HullMesh stats={stats} />
+      <group position={[-d.len * 0.05, turretMountY(stats), 0]}>
+        <TurretMesh stats={stats} />
+      </group>
     </group>
   );
 }
